@@ -18,9 +18,9 @@ input:focus,textarea:focus,select:focus{outline:none}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 @keyframes slideIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1a2e;color:#fff;padding:12px 24px;border-radius:10px;font-size:13px;font-weight:600;z-index:2000;animation:slideIn .3s;box-shadow:0 8px 24px rgba(0,0,0,.25)}
-.toggle{position:relative;width:36px;height:20px;border-radius:10px;cursor:pointer;transition:background .2s;border:none;padding:0;flex-shrink:0}
-.toggle::after{content:'';position:absolute;width:16px;height:16px;border-radius:50%;background:#fff;top:2px;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
-.toggle.on{background:#5B5EA6}.toggle.on::after{left:18px}
+.toggle{position:relative;width:44px;height:24px;border-radius:12px;cursor:pointer;transition:background .2s;border:none;padding:0;flex-shrink:0}
+.toggle::after{content:'';position:absolute;width:20px;height:20px;border-radius:50%;background:#fff;top:2px;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.toggle.on{background:#5B5EA6}.toggle.on::after{left:22px}
 .toggle.off{background:#cbd5e1}.toggle.off::after{left:2px}
 svg text{-webkit-user-select:none;user-select:none}
 </style>
@@ -92,7 +92,7 @@ const decS=s=>{try{const j=LZString.decompressFromEncodedURIComponent(s);if(j){c
 
 const DS={revolving:true,clockwise:true,startMonth:0,theme:"light",showDates:false,showHolidays:true,logo:null};
 const useTh=id=>BG.find(t=>t.id===id)||BG[0];
-const Toggle=({value,onChange,label,desc})=>(<div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}><button className={`toggle ${value?"on":"off"}`} onClick={()=>onChange(!value)}/><div><div style={{fontSize:11,fontWeight:600}}>{label}</div>{desc&&<div style={{fontSize:9,color:"#94a3b8"}}>{desc}</div>}</div></div>);
+const Toggle=({value,onChange,label,desc})=>(<div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}><button className={`toggle ${value?"on":"off"}`} onClick={()=>onChange(!value)}/><div><div style={{fontSize:13,fontWeight:600}}>{label}</div>{desc&&<div style={{fontSize:11,color:"#94a3b8"}}>{desc}</div>}</div></div>);
 
 /* ═══ Month degree calculator - handles both normal and precise mode ═══ */
 function useMonthGeometry(settings){
@@ -189,7 +189,7 @@ function Onboarding({onComplete}){
           onMouseLeave={e=>{e.currentTarget.style.borderColor="#e2e8f0";e.currentTarget.style.boxShadow="none"}}>
           <MiniClock categories={t.categories} events={t.events} size={90}/>
           <div style={{fontWeight:800,fontSize:12,marginTop:8}}>{t.name}</div>
-          <div style={{fontSize:9,color:"#94a3b8",marginTop:2}}>{t.desc}</div>
+          <div style={{fontSize:11,color:"#94a3b8",marginTop:2}}>{t.desc}</div>
         </button>)}
       </div>
     </div></div>);
@@ -323,10 +323,19 @@ function CircularClock({events,categories,onMonthClick,onEventClick,clockTitle,s
           {MF.map((_,mi)=>{const sd=mS(mi),ed=mE(mi),s2=Math.min(sd,ed),e2=Math.max(sd,ed);
             const isSel=mi===selectedMonth,isCur=mi===cm;
             return<path key={`d${mi}`} d={aP(cx,cy,dRO,dRI,s2,e2)} fill={cat.color} opacity={isSel?.65:isCur?.5:.3} stroke={th.card} strokeWidth=".5" onClick={()=>onMonthClick(mi)} style={{cursor:"pointer"}}/>})}
-          {(()=>{const rM=(lRI+lRO)/2,pid=`cl${ri}`,la=mS(7),lb=mE(7),s2=Math.min(la,lb),e2=Math.max(la,lb);
+          {/* Category name labels - appear at 3 positions around the ring */}
+          {[{pos:0,label:"top"},{pos:4,label:"left"},{pos:8,label:"bottom"}].map(({pos})=>{
+            const la=mS(pos),lb=mE(pos+1),s2=Math.min(la,lb),e2=Math.max(la,lb);
+            const rM=(lRI+lRO)/2;
+            const pid=`cl${ri}_${pos}`;
             const[sx2,sy2]=p2c(cx,cy,rM,s2),[ex2,ey2]=p2c(cx,cy,rM,e2);
-            return(<g><defs><path id={pid} d={`M${sx2},${sy2} A${rM},${rM} 0 0,1 ${ex2},${ey2}`} fill="none"/></defs>
-              <text fontSize="6.5" fontWeight="700" fill={th.text+"55"}><textPath href={`#${pid}`} startOffset="50%" textAnchor="middle">{cat.name}</textPath></text></g>)})()}
+            return(<g key={`${cat.id}_l${pos}`}>
+              <defs><path id={pid} d={`M${sx2},${sy2} A${rM},${rM} 0 0,1 ${ex2},${ey2}`} fill="none"/></defs>
+              <text fontSize="8" fontWeight="800" fill={th.text} opacity=".45" style={{letterSpacing:".08em"}}>
+                <textPath href={`#${pid}`} startOffset="50%" textAnchor="middle">{cat.name.toUpperCase()}</textPath>
+              </text>
+            </g>);
+          })}
         </g>))}
 
       {/* Divider lines */}
@@ -486,7 +495,7 @@ function ListView({events,categories,onMonthClick,onEventClick,theme:th}){
 /* ═══ Sidebar ═══ */
 function Sidebar({clock,onUpdate,onMonthClick,selectedMonth,showSB,setShowSB,setShowCat,setShowSett,theme:th}){
   const cm=new Date().getMonth();if(!showSB)return null;
-  return(<div style={{width:220,flexShrink:0,background:th.card,borderRight:`1px solid ${th.border}`,padding:"10px 8px",overflowY:"auto",height:"calc(100vh - 48px)",fontSize:10,color:th.text}}>
+  return(<div style={{width:240,flexShrink:0,background:th.card,borderRight:`1px solid ${th.border}`,padding:"10px 8px",overflowY:"auto",height:"calc(100vh - 56px)",fontSize:10,color:th.text}}>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
       <h3 style={{fontSize:12,fontWeight:800}}>{clock.name}</h3>
       <button onClick={()=>setShowSB(false)} style={{background:"none",border:"none",color:th.sub,cursor:"pointer",fontSize:12}}>✕</button></div>
@@ -515,18 +524,41 @@ function Sidebar({clock,onUpdate,onMonthClick,selectedMonth,showSB,setShowSB,set
 }
 
 /* ═══ Event Modal ═══ */
-function EventModal({event,month,categories,onSave,onCancel,theme:th,}){
+function EventModal({event,month,categories,onSave,onCancel,theme:th}){
   const[t,setT]=useState(event?.title||"");const[d,setD]=useState(event?.desc||"");const[ci,setCi]=useState(event?.categoryId||categories[0]?.id||"");
   const[sm,setSm]=useState(event?.month??month??0);const[ec,setEc]=useState(event?.eventColor||null);
   const[tags,setTags]=useState(event?.tags||[]);const[sd,setSd]=useState(event?.startDay||"");const[ed,setEd]=useState(event?.endDay||"");
+  const[recur,setRecur]=useState("once"); // once | monthly | quarterly | halfyearly
   const toggleTag=id=>setTags(tags.includes(id)?tags.filter(x=>x!==id):[...tags,id]);
-  const go=()=>{if(!t.trim())return;onSave({id:event?.id||uid(),month:sm,title:t.trim(),desc:d.trim(),categoryId:ci,eventColor:ec,tags,startDay:sd?+sd:null,endDay:ed?+ed:null})};
+  const go=()=>{
+    if(!t.trim())return;
+    const base={title:t.trim(),desc:d.trim(),categoryId:ci,eventColor:ec,tags,startDay:sd?+sd:null,endDay:ed?+ed:null};
+    if(event){
+      // Editing existing - just save normally
+      onSave({...base,id:event.id,month:sm});
+    } else {
+      // New event - handle recurrence
+      const evts=[];
+      if(recur==="once"){
+        evts.push({...base,id:uid(),month:sm});
+      } else if(recur==="monthly"){
+        for(let m=sm;m<12;m++) evts.push({...base,id:uid(),month:m});
+      } else if(recur==="quarterly"){
+        for(let m=sm;m<12;m+=3) evts.push({...base,id:uid(),month:m});
+      } else if(recur==="halfyearly"){
+        evts.push({...base,id:uid(),month:sm});
+        if(sm+6<12) evts.push({...base,id:uid(),month:sm+6});
+      }
+      // Save all at once
+      onSave(evts);
+    }
+  };
   const ovr={position:"fixed",inset:0,background:"rgba(0,0,0,.4)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:16,backdropFilter:"blur(4px)"};
   const mod={background:th.card,borderRadius:14,padding:20,width:"100%",maxWidth:460,maxHeight:"90vh",overflowY:"auto",boxShadow:"0 24px 48px rgba(0,0,0,.2)",color:th.text,border:`1px solid ${th.border}`};
-  const lb2={display:"block",color:th.muted,fontSize:10,fontWeight:700,marginBottom:2};
+  const lb2={display:"block",color:th.muted,fontSize:12,fontWeight:700,marginBottom:4};
   const in2={width:"100%",padding:"7px 10px",borderRadius:7,border:`1.5px solid ${th.border}`,background:th.alt,color:th.text,fontSize:12,marginBottom:10,fontFamily:"inherit",outline:"none"};
   return(<div style={ovr} onClick={onCancel}><div onClick={e=>e.stopPropagation()} style={mod}>
-    <h3 style={{margin:"0 0 12px",fontSize:15,fontWeight:800}}>{event?"Muokkaa":"Uusi tapahtuma"}</h3>
+    <h3 style={{margin:"0 0 12px",fontSize:18,fontWeight:800}}>{event?"Muokkaa":"Uusi tapahtuma"}</h3>
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
       <div><label style={lb2}>Kuukausi</label><select value={sm} onChange={e=>setSm(+e.target.value)} style={in2}>{MF.map((m,i)=><option key={i} value={i}>{m}</option>)}</select></div>
       <div><label style={lb2}>Kehä</label><select value={ci} onChange={e=>setCi(e.target.value)} style={in2}>{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
@@ -540,6 +572,20 @@ function EventModal({event,month,categories,onSave,onCancel,theme:th,}){
       <div><label style={lb2}>Loppupäivä</label><input type="number" min="1" max="31" value={ed} onChange={e=>setEd(e.target.value)} placeholder="–" style={in2}/></div>
     </div>
 
+    {/* Recurrence - only for new events */}
+    {!event&&<><label style={lb2}>Toistuvuus</label>
+    <div style={{display:"flex",flexWrap:"wrap",gap:3,marginBottom:10}}>
+      {[{v:"once",l:"Kerran",icon:"1️⃣"},{v:"monthly",l:"Kuukausittain",icon:"🔄"},{v:"quarterly",l:"Kvartaaleittain",icon:"📊"},{v:"halfyearly",l:"Puolivuosittain",icon:"↕️"}].map(o=>
+        <button key={o.v} onClick={()=>setRecur(o.v)} style={{padding:"4px 10px",borderRadius:99,border:`1.5px solid ${recur===o.v?"#5B5EA6":th.border}`,background:recur===o.v?"#5B5EA622":th.card,color:recur===o.v?"#5B5EA6":th.muted,fontSize:9,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{o.icon} {o.l}</button>
+      )}
+    </div>
+    {recur!=="once"&&<div style={{fontSize:9,color:"#5B5EA6",marginBottom:10,padding:"6px 10px",borderRadius:6,background:"#5B5EA608",border:"1px solid #5B5EA622"}}>
+      {recur==="monthly"&&`Luodaan ${12-sm} tapahtumaa: ${MF.slice(sm).map(m=>m.slice(0,3)).join(", ")}`}
+      {recur==="quarterly"&&`Luodaan ${Math.ceil((12-sm)/3)} tapahtumaa: ${Array.from({length:Math.ceil((12-sm)/3)},(_,i)=>MF[sm+i*3]?.slice(0,3)).filter(Boolean).join(", ")}`}
+      {recur==="halfyearly"&&`Luodaan ${sm+6<12?2:1} tapahtumaa: ${MF[sm].slice(0,3)}${sm+6<12?", "+MF[sm+6].slice(0,3):""}`}
+    </div>}
+    </>}
+
     <label style={lb2}>Väri</label>
     <div style={{display:"flex",flexWrap:"wrap",gap:3,marginBottom:8}}>
       <button onClick={()=>setEc(null)} style={{padding:"2px 7px",borderRadius:99,border:`1.5px solid ${!ec?th.text:th.border}`,background:th.card,fontSize:8,fontWeight:600,cursor:"pointer",fontFamily:"inherit",color:th.muted}}>Oletus</button>
@@ -547,7 +593,7 @@ function EventModal({event,month,categories,onSave,onCancel,theme:th,}){
     <label style={lb2}>Tunnisteet</label>
     <div style={{display:"flex",flexWrap:"wrap",gap:3,marginBottom:12}}>
       {TAGS.map(tag=><button key={tag.id} onClick={()=>toggleTag(tag.id)} style={{padding:"2px 7px",borderRadius:99,border:`1.5px solid ${tags.includes(tag.id)?tag.color:"transparent"}`,background:tag.color+(tags.includes(tag.id)?"33":"08"),color:tag.color,fontSize:8,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{tag.icon}{tag.name}</button>)}</div>
-    <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}><button onClick={onCancel} style={{padding:"5px 10px",borderRadius:6,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Peruuta</button><button onClick={go} style={{padding:"5px 12px",borderRadius:6,border:"none",background:"#5B5EA6",color:"#fff",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",opacity:t.trim()?1:.4}}>{event?"Tallenna":"Lisää"}</button></div>
+    <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}><button onClick={onCancel} style={{padding:"8px 14px",borderRadius:8,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Peruuta</button><button onClick={go} style={{padding:"8px 16px",borderRadius:8,border:"none",background:"#5B5EA6",color:"#fff",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",opacity:t.trim()?1:.4}}>{event?"Tallenna":"Lisää"}</button></div>
   </div></div>);
 }
 
@@ -557,14 +603,14 @@ function CatModal({categories,onSave,onCancel,theme:th}){
   const ovr={position:"fixed",inset:0,background:"rgba(0,0,0,.4)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:16,backdropFilter:"blur(4px)"};
   const mod={background:th.card,borderRadius:14,padding:20,width:"100%",maxWidth:440,maxHeight:"90vh",overflowY:"auto",boxShadow:"0 24px 48px rgba(0,0,0,.2)",color:th.text,border:`1px solid ${th.border}`};
   return(<div style={ovr} onClick={onCancel}><div onClick={e=>e.stopPropagation()} style={mod}>
-    <h3 style={{margin:"0 0 12px",fontSize:15,fontWeight:800}}>Kehät</h3>
+    <h3 style={{margin:"0 0 12px",fontSize:18,fontWeight:800}}>Kehät</h3>
     <div style={{display:"flex",flexDirection:"column",gap:5,marginBottom:8}}>
       {c.map(x=><div key={x.id} style={{display:"flex",gap:4,alignItems:"center"}}>
         <input type="color" value={x.color} onChange={e=>setC(c.map(z=>z.id===x.id?{...z,color:e.target.value}:z))} style={{width:24,height:24,border:"none",borderRadius:5,cursor:"pointer"}}/>
         <input value={x.name} onChange={e=>setC(c.map(z=>z.id===x.id?{...z,name:e.target.value}:z))} placeholder="Nimi" style={{flex:1,padding:"5px 8px",borderRadius:6,border:`1px solid ${th.border}`,background:th.alt,color:th.text,fontSize:11,fontFamily:"inherit",outline:"none"}}/>
         <button onClick={()=>setC(c.filter(z=>z.id!==x.id))} style={{background:"none",border:"none",cursor:"pointer",color:"#ef4444",fontSize:11}}>✕</button></div>)}</div>
     <button onClick={()=>setC([...c,{id:uid(),name:"",color:["#A8C5DA","#F5D5A0","#B5D8C7","#E8B4B8","#B8B5D8"][c.length%5],visible:true}])} style={{width:"100%",padding:"5px",borderRadius:5,border:`1.5px dashed ${th.border}`,background:"transparent",color:th.muted,fontSize:9,fontWeight:700,cursor:"pointer",fontFamily:"inherit",marginBottom:8}}>+ Lisää</button>
-    <div style={{display:"flex",gap:5,justifyContent:"flex-end"}}><button onClick={onCancel} style={{padding:"5px 10px",borderRadius:6,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Peruuta</button><button onClick={()=>onSave(c.filter(x=>x.name.trim()))} style={{padding:"5px 12px",borderRadius:6,border:"none",background:"#5B5EA6",color:"#fff",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Tallenna</button></div>
+    <div style={{display:"flex",gap:5,justifyContent:"flex-end"}}><button onClick={onCancel} style={{padding:"8px 14px",borderRadius:8,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Peruuta</button><button onClick={()=>onSave(c.filter(x=>x.name.trim()))} style={{padding:"8px 16px",borderRadius:8,border:"none",background:"#5B5EA6",color:"#fff",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Tallenna</button></div>
   </div></div>);
 }
 
@@ -572,13 +618,13 @@ function SettModal({settings,onSave,onCancel,theme:th}){
   const[s,setS]=useState({...settings});
   const handleLogo=()=>{const i=document.createElement("input");i.type="file";i.accept="image/*";i.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>setS({...s,logo:ev.target.result});r.readAsDataURL(f)};i.click()};
   const ovr={position:"fixed",inset:0,background:"rgba(0,0,0,.4)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:16,backdropFilter:"blur(4px)"};
-  const mod={background:th.card,borderRadius:14,padding:20,width:"100%",maxWidth:420,maxHeight:"90vh",overflowY:"auto",boxShadow:"0 24px 48px rgba(0,0,0,.2)",color:th.text,border:`1px solid ${th.border}`};
-  const lb2={display:"block",color:th.muted,fontSize:10,fontWeight:700,marginBottom:2};
+  const mod={background:th.card,borderRadius:14,padding:20,width:"100%",maxWidth:480,maxHeight:"90vh",overflowY:"auto",boxShadow:"0 24px 48px rgba(0,0,0,.2)",color:th.text,border:`1px solid ${th.border}`};
+  const lb2={display:"block",color:th.muted,fontSize:12,fontWeight:700,marginBottom:4};
   return(<div style={ovr} onClick={onCancel}><div onClick={e=>e.stopPropagation()} style={mod}>
-    <h3 style={{margin:"0 0 14px",fontSize:15,fontWeight:800}}>Asetukset</h3>
+    <h3 style={{margin:"0 0 14px",fontSize:18,fontWeight:800}}>Asetukset</h3>
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
       <div><label style={lb2}>Tyyppi</label><div style={{display:"flex",borderRadius:6,overflow:"hidden",border:`1px solid ${th.border}`}}>
-        {[{v:true,l:"Pyörivä"},{v:false,l:"Staattinen"}].map(o=><button key={String(o.v)} onClick={()=>setS({...s,revolving:o.v})} style={{flex:1,padding:"6px",border:"none",fontSize:10,fontWeight:700,fontFamily:"inherit",cursor:"pointer",background:s.revolving===o.v?"#5B5EA6":th.alt,color:s.revolving===o.v?"#fff":th.muted}}>{o.l}</button>)}</div></div>
+        {[{v:true,l:"Pyörivä"},{v:false,l:"Staattinen"}].map(o=><button key={String(o.v)} onClick={()=>setS({...s,revolving:o.v})} style={{flex:1,padding:"10px",border:"none",fontSize:12,fontWeight:700,fontFamily:"inherit",cursor:"pointer",background:s.revolving===o.v?"#5B5EA6":th.alt,color:s.revolving===o.v?"#fff":th.muted}}>{o.l}</button>)}</div></div>
       <div><label style={lb2}>Suunta</label><div style={{display:"flex",borderRadius:6,overflow:"hidden",border:`1px solid ${th.border}`}}>
         {[{v:true,l:"↻"},{v:false,l:"↺"}].map(o=><button key={String(o.v)} onClick={()=>setS({...s,clockwise:o.v})} style={{flex:1,padding:"6px",border:"none",fontSize:12,fontWeight:700,fontFamily:"inherit",cursor:"pointer",background:s.clockwise===o.v?"#5B5EA6":th.alt,color:s.clockwise===o.v?"#fff":th.muted}}>{o.l}</button>)}</div></div>
     </div>
@@ -592,9 +638,15 @@ function SettModal({settings,onSave,onCancel,theme:th}){
       <button onClick={handleLogo} style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontSize:9,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{s.logo?"Vaihda":"Lataa"}</button>
       {s.logo&&<button onClick={()=>setS({...s,logo:null})} style={{background:"none",border:"none",color:"#ef4444",cursor:"pointer",fontSize:9,fontWeight:700,fontFamily:"inherit"}}>Poista</button>}</div>
     <label style={lb2}>Teema</label>
-    <div style={{display:"flex",gap:3,marginBottom:12}}>
-      {BG.map(t=><button key={t.id} onClick={()=>setS({...s,theme:t.id})} style={{flex:1,padding:"5px",borderRadius:6,border:s.theme===t.id?"2px solid #5B5EA6":`1.5px solid ${th.border}`,background:t.bg,color:t.text,fontSize:8,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{t.name}</button>)}</div>
-    <div style={{display:"flex",gap:5,justifyContent:"flex-end"}}><button onClick={onCancel} style={{padding:"5px 10px",borderRadius:6,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Peruuta</button><button onClick={()=>onSave(s)} style={{padding:"5px 12px",borderRadius:6,border:"none",background:"#5B5EA6",color:"#fff",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Tallenna</button></div>
+    <div style={{display:"flex",gap:3,marginBottom:8}}>
+      {BG.map(t=><button key={t.id} onClick={()=>setS({...s,theme:t.id,customBg:null})} style={{flex:1,padding:"8px",borderRadius:8,border:s.theme===t.id&&!s.customBg?"2px solid #5B5EA6":`1.5px solid ${th.border}`,background:t.bg,color:t.text,fontSize:8,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{t.name}</button>)}</div>
+    <label style={lb2}>Tai valitse oma taustaväri</label>
+    <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:12}}>
+      <input type="color" value={s.customBg||th.bg} onChange={e=>setS({...s,customBg:e.target.value})} style={{width:32,height:32,border:"none",borderRadius:6,cursor:"pointer"}}/>
+      <div style={{flex:1,height:24,borderRadius:6,background:s.customBg||th.bg,border:`1px solid ${th.border}`}}/>
+      {s.customBg&&<button onClick={()=>setS({...s,customBg:null})} style={{background:"none",border:"none",color:"#ef4444",cursor:"pointer",fontSize:9,fontWeight:700,fontFamily:"inherit"}}>Poista</button>}
+    </div>
+    <div style={{display:"flex",gap:5,justifyContent:"flex-end"}}><button onClick={onCancel} style={{padding:"8px 14px",borderRadius:8,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Peruuta</button><button onClick={()=>onSave(s)} style={{padding:"8px 16px",borderRadius:8,border:"none",background:"#5B5EA6",color:"#fff",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Tallenna</button></div>
   </div></div>);
 }
 
@@ -602,11 +654,11 @@ function ShareModal({clock,onClose,theme:th}){
   const[cp,setCp]=useState(false);const enc=encS(clock);const url=enc?window.location.origin+window.location.pathname+"?d="+enc:null;const big=!url||url.length>8000;
   const ovr={position:"fixed",inset:0,background:"rgba(0,0,0,.4)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:16,backdropFilter:"blur(4px)"};
   return(<div style={ovr} onClick={onClose}><div onClick={e=>e.stopPropagation()} style={{background:th.card,borderRadius:14,padding:20,width:"100%",maxWidth:400,boxShadow:"0 24px 48px rgba(0,0,0,.2)",color:th.text,border:`1px solid ${th.border}`}}>
-    <h3 style={{margin:"0 0 12px",fontSize:15,fontWeight:800}}>Jaa</h3>
+    <h3 style={{margin:"0 0 12px",fontSize:18,fontWeight:800}}>Jaa</h3>
     {!big&&<div style={{display:"flex",gap:4,marginBottom:8}}><input value={url} readOnly style={{flex:1,padding:"5px 8px",borderRadius:6,border:`1px solid ${th.border}`,background:th.alt,color:th.sub,fontSize:8,fontFamily:"inherit",outline:"none"}} onClick={e=>e.target.select()}/>
-      <button onClick={()=>{if(url)navigator.clipboard.writeText(url).then(()=>{setCp(true);setTimeout(()=>setCp(false),2000)})}} style={{padding:"5px 10px",borderRadius:6,border:"none",background:cp?"#22C55E":"#5B5EA6",color:"#fff",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{cp?"✓":"Kopioi"}</button></div>}
+      <button onClick={()=>{if(url)navigator.clipboard.writeText(url).then(()=>{setCp(true);setTimeout(()=>setCp(false),2000)})}} style={{padding:"8px 14px",borderRadius:8,border:"none",background:cp?"#22C55E":"#5B5EA6",color:"#fff",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{cp?"✓":"Kopioi"}</button></div>}
     <button onClick={()=>{const b=new Blob([JSON.stringify([clock],null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=(clock.name||"vuosikello")+".json";a.click()}} style={{width:"100%",padding:"6px",borderRadius:6,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",marginBottom:6}}>💾 JSON</button>
-    <div style={{display:"flex",justifyContent:"flex-end"}}><button onClick={onClose} style={{padding:"5px 10px",borderRadius:6,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Sulje</button></div>
+    <div style={{display:"flex",justifyContent:"flex-end"}}><button onClick={onClose} style={{padding:"8px 14px",borderRadius:8,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Sulje</button></div>
   </div></div>);
 }
 
@@ -628,13 +680,13 @@ function MonthPanel({month,events,categories,holidays,onAdd,onEdit,onDelete,onCl
 
   return(<div style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:12,padding:"16px 14px",marginTop:10,animation:"slideIn .2s",color:th.text}}>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-      <h3 style={{margin:0,fontSize:15,fontWeight:800}}>
+      <h3 style={{margin:0,fontSize:18,fontWeight:800}}>
         {MF[month]} {new Date().getFullYear()}
         <span style={{color:th.sub,fontWeight:400,fontSize:11,marginLeft:6}}>{me.length} tapahtumaa{mh.length>0?` · ${mh.length} juhlapyhää`:""}</span>
       </h3>
       <div style={{display:"flex",gap:4}}>
-        <button onClick={()=>onAdd(month)} style={{padding:"4px 10px",borderRadius:6,border:"none",background:"#5B5EA6",color:"#fff",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>+ Lisää</button>
-        <button onClick={onClose} style={{padding:"4px 8px",borderRadius:6,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✕</button>
+        <button onClick={()=>onAdd(month)} style={{padding:"6px 14px",borderRadius:8,border:"none",background:"#5B5EA6",color:"#fff",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>+ Lisää</button>
+        <button onClick={onClose} style={{padding:"6px 12px",borderRadius:8,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✕</button>
       </div>
     </div>
 
@@ -702,40 +754,51 @@ function App(){
   const holidays=clock?.settings?.showHolidays?FI_HOLIDAYS:[];
   const upd=useCallback(u=>setClocks(p=>p.map(c=>c.id===acId?{...c,...u}:c)),[acId]);
   const onOB=nc=>{setClocks(nc);setAcId(nc[0].id);setShowOB(false)};
-  const saveEv=ev=>{const ex=clock.events.find(e=>e.id===ev.id);if(ex)upd({events:clock.events.map(e=>e.id===ev.id?ev:e)});else upd({events:[...clock.events,ev]});setEditEv(null)};
+  const saveEv=ev=>{
+    if(Array.isArray(ev)){
+      // Recurring: add multiple new events
+      upd({events:[...clock.events,...ev]});
+    } else {
+      const ex=clock.events.find(e=>e.id===ev.id);
+      if(ex)upd({events:clock.events.map(e=>e.id===ev.id?ev:e)});
+      else upd({events:[...clock.events,ev]});
+    }
+    setEditEv(null);
+  };
 
   if(showOB)return<Onboarding onComplete={onOB}/>;
   if(!clock)return null;
 
-  return(<div style={{minHeight:"100vh",background:th.bg,fontFamily:"'DM Sans',sans-serif",color:th.text,transition:"background .3s"}}>
-    <header style={{height:48,padding:"0 12px",borderBottom:`1px solid ${th.border}`,display:"flex",alignItems:"center",justifyContent:"space-between",background:th.card,gap:6}}>
+  const customBg=clock?.settings?.customBg;
+  return(<div style={{minHeight:"100vh",background:customBg||th.bg,fontFamily:"'DM Sans',sans-serif",color:th.text,transition:"background .3s"}}>
+    <header style={{height:56,padding:"0 16px",borderBottom:`1px solid ${th.border}`,display:"flex",alignItems:"center",justifyContent:"space-between",background:th.card,gap:6}}>
       <div style={{display:"flex",alignItems:"center",gap:6}}>
-        <button onClick={()=>setShowSB(!showSB)} style={{background:"none",border:"none",color:th.muted,cursor:"pointer",fontSize:14,padding:"2px 5px"}}>☰</button>
-        <div style={{width:24,height:24,borderRadius:5,background:"linear-gradient(135deg,#5B5EA6,#3A8FCD)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:10,fontWeight:800}}>◎</div>
+        <button onClick={()=>setShowSB(!showSB)} style={{background:"none",border:"none",color:th.muted,cursor:"pointer",fontSize:18,padding:"4px 8px"}}>☰</button>
+        <div style={{width:30,height:30,borderRadius:7,background:"linear-gradient(135deg,#5B5EA6,#3A8FCD)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:10,fontWeight:800}}>◎</div>
         {editName?<div style={{display:"flex",gap:3,alignItems:"center"}}>
           <input value={nameVal} onChange={e=>setNameVal(e.target.value)} style={{width:150,fontSize:11,padding:"2px 6px",borderRadius:5,border:`1px solid ${th.border}`,background:th.alt,color:th.text,fontFamily:"inherit",outline:"none"}} autoFocus onKeyDown={e=>{if(e.key==="Enter"&&nameVal.trim()){upd({name:nameVal.trim()});setEditName(false)}if(e.key==="Escape")setEditName(false)}}/>
           <button onClick={()=>{if(nameVal.trim()){upd({name:nameVal.trim()});setEditName(false)}}} style={{background:"none",border:"none",color:"#22C55E",cursor:"pointer",fontSize:12}}>✓</button></div>:
-        <button onClick={()=>{setNameVal(clock.name);setEditName(true)}} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:800,fontSize:12,color:th.text,padding:0}}>{clock.name} <span style={{fontSize:8,color:th.sub}}>✎</span></button>}
+        <button onClick={()=>{setNameVal(clock.name);setEditName(true)}} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:800,fontSize:14,color:th.text,padding:0}}>{clock.name} <span style={{fontSize:8,color:th.sub}}>✎</span></button>}
       </div>
       <div style={{display:"flex",gap:3,alignItems:"center",flexWrap:"wrap"}}>
         <div style={{display:"flex",borderRadius:5,overflow:"hidden",border:`1px solid ${th.border}`,marginRight:2}}>
-          {[["clock","◎"],["roadmap","🗺"],["timeline","⏐"],["list","≡"]].map(([v,ic])=><button key={v} onClick={()=>setView(v)} style={{padding:"2px 8px",border:"none",fontSize:10,fontWeight:700,fontFamily:"inherit",cursor:"pointer",background:view===v?"#5B5EA6":th.card,color:view===v?"#fff":th.muted}}>{ic}</button>)}</div>
-        <button onClick={()=>setDayRing(!dayRing)} style={{fontSize:8,padding:"2px 8px",borderRadius:4,border:dayRing?`1.5px solid #5B5EA6`:`1.5px solid ${th.border}`,background:dayRing?"#5B5EA622":th.card,color:dayRing?"#5B5EA6":th.muted,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}} title="Päivärengas">{dayRing?"📅 Päivät":"📅"}</button>
-        {clocks.length>1&&clocks.map(c=><button key={c.id} onClick={()=>{setAcId(c.id);setSelM(null)}} style={{fontSize:8,padding:"2px 6px",borderRadius:4,border:c.id===acId?"none":`1px solid ${th.border}`,background:c.id===acId?"#5B5EA6":th.card,color:c.id===acId?"#fff":th.muted,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{c.name}</button>)}
-        <button onClick={()=>{const id=uid();setClocks(p=>[...p,{id,name:"Uusi",events:[],categories:[{id:uid(),name:"Yleinen",color:"#A8C5DA",visible:true}],settings:{...DS,theme:clock?.settings?.theme||"light"}}]);setAcId(id)}} style={{fontSize:8,padding:"2px 6px",borderRadius:4,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>+</button>
+          {[["clock","◎"],["roadmap","🗺"],["timeline","⏐"],["list","≡"]].map(([v,ic])=><button key={v} onClick={()=>setView(v)} style={{padding:"5px 12px",border:"none",fontSize:12,fontWeight:700,fontFamily:"inherit",cursor:"pointer",background:view===v?"#5B5EA6":th.card,color:view===v?"#fff":th.muted}}>{ic}</button>)}</div>
+        <button onClick={()=>setDayRing(!dayRing)} style={{fontSize:11,padding:"8px 16px",borderRadius:8,border:dayRing?`1.5px solid #5B5EA6`:`1.5px solid ${th.border}`,background:dayRing?"#5B5EA622":th.card,color:dayRing?"#5B5EA6":th.muted,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}} title="Päivärengas">{dayRing?"📅 Päivät":"📅"}</button>
+        {clocks.length>1&&clocks.map(c=><button key={c.id} onClick={()=>{setAcId(c.id);setSelM(null)}} style={{fontSize:11,padding:"8px 14px",borderRadius:8,border:c.id===acId?"none":`1px solid ${th.border}`,background:c.id===acId?"#5B5EA6":th.card,color:c.id===acId?"#fff":th.muted,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{c.name}</button>)}
+        <button onClick={()=>{const id=uid();setClocks(p=>[...p,{id,name:"Uusi",events:[],categories:[{id:uid(),name:"Yleinen",color:"#A8C5DA",visible:true}],settings:{...DS,theme:clock?.settings?.theme||"light"}}]);setAcId(id)}} style={{fontSize:11,padding:"8px 14px",borderRadius:8,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>+</button>
         <div style={{width:1,height:14,background:th.border}}/>
-        <button onClick={()=>setShowShare(true)} style={{fontSize:8,padding:"2px 8px",borderRadius:4,border:"none",background:"#5B5EA6",color:"#fff",fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>🔗</button>
-        <button onClick={()=>{const i=document.createElement("input");i.type="file";i.accept=".json";i.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(Array.isArray(d)){setClocks(d.map(c=>({...c,events:(c.events||[]).map(e2=>({...e2,tags:e2.tags||[],startDay:e2.startDay||null,endDay:e2.endDay||null})),categories:(c.categories||[]).map(ct=>({...ct,visible:ct.visible!==false})),settings:{...DS,...(c.settings||{})}})));setAcId(d[0].id)}}catch{}};r.readAsText(f)};i.click()}} style={{fontSize:8,padding:"2px 6px",borderRadius:4,border:`1px solid ${th.border}`,background:th.card,color:th.muted,cursor:"pointer",fontFamily:"inherit"}}>📂</button>
-        <button onClick={()=>{if(confirm("Nollaa?")){localStorage.removeItem(SK);setClocks([]);setShowOB(true)}}} style={{fontSize:7,padding:"2px 5px",borderRadius:3,border:`1px solid ${th.border}`,background:th.card,color:"#ef4444",cursor:"pointer",fontFamily:"inherit",fontWeight:700}}>×</button>
+        <button onClick={()=>setShowShare(true)} style={{fontSize:11,padding:"8px 16px",borderRadius:8,border:"none",background:"#5B5EA6",color:"#fff",fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>🔗</button>
+        <button onClick={()=>{const i=document.createElement("input");i.type="file";i.accept=".json";i.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(Array.isArray(d)){setClocks(d.map(c=>({...c,events:(c.events||[]).map(e2=>({...e2,tags:e2.tags||[],startDay:e2.startDay||null,endDay:e2.endDay||null})),categories:(c.categories||[]).map(ct=>({...ct,visible:ct.visible!==false})),settings:{...DS,...(c.settings||{})}})));setAcId(d[0].id)}}catch{}};r.readAsText(f)};i.click()}} style={{fontSize:11,padding:"8px 14px",borderRadius:8,border:`1px solid ${th.border}`,background:th.card,color:th.muted,cursor:"pointer",fontFamily:"inherit"}}>📂</button>
+        <button onClick={()=>{if(confirm("Nollaa?")){localStorage.removeItem(SK);setClocks([]);setShowOB(true)}}} style={{fontSize:10,padding:"4px 8px",borderRadius:5,border:`1px solid ${th.border}`,background:th.card,color:"#ef4444",cursor:"pointer",fontFamily:"inherit",fontWeight:700}}>×</button>
       </div>
     </header>
-    <div style={{display:"flex",height:"calc(100vh - 48px)"}}>
+    <div style={{display:"flex",height:"calc(100vh - 56px)"}}>
       <Sidebar clock={clock} onUpdate={upd} onMonthClick={m=>setSelM(selM===m?null:m)} selectedMonth={selM} showSB={showSB} setShowSB={setShowSB} setShowCat={setShowCat} setShowSett={setShowSett} theme={th}/>
       <div style={{flex:1,overflowY:"auto",padding:"10px 14px"}}>
         <div style={{display:"flex",justifyContent:"flex-end",marginBottom:8,gap:3}}>
-          <button onClick={()=>setShowCat(true)} style={{fontSize:8,padding:"3px 8px",borderRadius:4,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>🏷</button>
-          <button onClick={()=>setShowSett(true)} style={{fontSize:8,padding:"3px 8px",borderRadius:4,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>⚙️</button>
-          <button onClick={()=>setEditEv({month:selM??new Date().getMonth()})} style={{fontSize:8,padding:"3px 10px",borderRadius:4,border:"none",background:"#5B5EA6",color:"#fff",fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>+ Tapahtuma</button>
+          <button onClick={()=>setShowCat(true)} style={{fontSize:11,padding:"8px 16px",borderRadius:8,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>🏷</button>
+          <button onClick={()=>setShowSett(true)} style={{fontSize:11,padding:"8px 16px",borderRadius:8,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>⚙️</button>
+          <button onClick={()=>setEditEv({month:selM??new Date().getMonth()})} style={{fontSize:11,padding:"5px 14px",borderRadius:6,border:"none",background:"#5B5EA6",color:"#fff",fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>+ Tapahtuma</button>
         </div>
 
         {/* Clock + side panel layout */}
