@@ -10,1255 +10,533 @@
 <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
 <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.5.0/lz-string.min.js"></script>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'DM Sans', sans-serif; background: #f5f0e8; color: #3d3528; }
-  ::-webkit-scrollbar { width: 6px; height: 6px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: #d5cec0; border-radius: 4px; }
-  button:hover { filter: brightness(1.08); }
-  input:focus, textarea:focus, select:focus { border-color: #5B5EA6 !important; outline: none; }
-  @keyframes fadeSlideIn { from { opacity:0; transform:translateY(8px) } to { opacity:1; transform:translateY(0) } }
-  @keyframes fadeIn { from { opacity:0 } to { opacity:1 } }
-  @keyframes scaleIn { from { opacity:0; transform:scale(0.95) } to { opacity:1; transform:scale(1) } }
-  .toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:#1e1b16; color:#f5f0e8; padding:12px 24px; border-radius:10px; font-size:14px; font-weight:600; z-index:2000; animation:fadeSlideIn 0.3s ease-out; box-shadow:0 8px 24px rgba(0,0,0,0.3); }
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;overflow-x:hidden}
+::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#c4c9d4;border-radius:4px}
+button{font-family:inherit;cursor:pointer;transition:all 0.15s}button:hover{filter:brightness(1.06)}
+input:focus,textarea:focus,select:focus{outline:none}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes slideIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1a2e;color:#fff;padding:12px 24px;border-radius:10px;font-size:13px;font-weight:600;z-index:2000;animation:slideIn 0.3s;box-shadow:0 8px 24px rgba(0,0,0,0.25)}
 </style>
 </head>
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useRef, useCallback, useMemo, useEffect } = React;
+const{useState,useRef,useCallback,useMemo,useEffect}=React;
+const MF=["Tammikuu","Helmikuu","Maaliskuu","Huhtikuu","Toukokuu","Kesäkuu","Heinäkuu","Elokuu","Syyskuu","Lokakuu","Marraskuu","Joulukuu"];
+const MS=["Tammi","Helmi","Maalis","Huhti","Touko","Kesä","Heinä","Elo","Syys","Loka","Marras","Joulu"];
 
-const MONTHS_FI = ["Tammikuu","Helmikuu","Maaliskuu","Huhtikuu","Toukokuu","Kesäkuu","Heinäkuu","Elokuu","Syyskuu","Lokakuu","Marraskuu","Joulukuu"];
-const MONTHS_SHORT = ["Tammi","Helmi","Maalis","Huhti","Touko","Kesä","Heinä","Elo","Syys","Loka","Marras","Joulu"];
+const EC=[{id:"default",name:"Oletus",color:null},{id:"red",name:"Kriittinen",color:"#E8453C"},{id:"orange",name:"Tärkeä",color:"#F59E0B"},{id:"green",name:"Normaali",color:"#22C55E"},{id:"blue",name:"Info",color:"#3B82F6"},{id:"purple",name:"Suunnittelu",color:"#8B5CF6"},{id:"pink",name:"Tapahtuma",color:"#EC4899"},{id:"gray",name:"Valmis",color:"#94A3B8"}];
 
-const DEFAULT_CATEGORIES = [
-  { id: "cat1", name: "Hallinto", color: "#5B5EA6" },
-  { id: "cat2", name: "Viestintä", color: "#E8873D" },
-  { id: "cat3", name: "Talous", color: "#3B9B74" },
-  { id: "cat4", name: "Henkilöstö", color: "#D4546A" },
-  { id: "cat5", name: "Kehittäminen", color: "#3A8FCD" },
+const BG_COLORS=[{id:"light",name:"Vaalea",bg:"#f0f2f5",text:"#1a1a2e",card:"#fff",border:"#e2e8f0",muted:"#64748b",sub:"#94a3b8",cardAlt:"#f8fafc"},
+  {id:"warm",name:"Lämmin",bg:"#faf5ef",text:"#2d1f0e",card:"#fff",border:"#e8dfd4",muted:"#8b7e6a",sub:"#a89880",cardAlt:"#fdfaf5"},
+  {id:"cool",name:"Viileä",bg:"#eef1f6",text:"#1a2035",card:"#fff",border:"#d8dde8",muted:"#5a6580",sub:"#8892a8",cardAlt:"#f5f7fb"},
+  {id:"dark",name:"Tumma",bg:"#13151a",text:"#e2e8f0",card:"#1e2028",border:"#2a2d38",muted:"#8892a8",sub:"#64748b",cardAlt:"#252830"}];
+
+const TEMPLATES=[
+  {id:"empty",name:"Tyhjä vuosikello",desc:"Aloita puhtaalta pöydältä",icon:"📝",
+    categories:[{id:"c1",name:"Yleinen",color:"#A8C5DA",visible:true}],events:[]},
+  {id:"business",name:"Yrityksen vuosikello",desc:"Hallinto, talous, HR ja viestintä",icon:"🏢",
+    categories:[{id:"c1",name:"Hallinto",color:"#A8C5DA",visible:true},{id:"c2",name:"Talous",color:"#B5D8C7",visible:true},{id:"c3",name:"Henkilöstö",color:"#E8B4B8",visible:true},{id:"c4",name:"Viestintä",color:"#F5D5A0",visible:true}],
+    events:[{id:"e1",month:0,title:"Vuosisuunnittelu",categoryId:"c1",eventColor:null},{id:"e2",month:0,title:"Tilinpäätös",categoryId:"c2",eventColor:"#E8453C"},{id:"e3",month:1,title:"Kehityskeskustelut",categoryId:"c3",eventColor:null},{id:"e4",month:2,title:"Q1-raportointi",categoryId:"c2",eventColor:"#F59E0B"},{id:"e5",month:3,title:"Kevättiedote",categoryId:"c4",eventColor:null},{id:"e6",month:5,title:"Puolivuotiskatsaus",categoryId:"c1",eventColor:"#F59E0B"},{id:"e7",month:8,title:"Q3-raportointi",categoryId:"c2",eventColor:null},{id:"e8",month:9,title:"Budjetointi",categoryId:"c2",eventColor:"#E8453C"},{id:"e9",month:11,title:"Vuosikatsaus",categoryId:"c4",eventColor:"#22C55E"},{id:"e10",month:11,title:"Pikkujoulut",categoryId:"c3",eventColor:"#EC4899"}]},
+  {id:"hr",name:"HR-vuosikello",desc:"Henkilöstöhallinnon prosessit",icon:"👥",
+    categories:[{id:"h1",name:"Rekrytointi",color:"#A8C5DA",visible:true},{id:"h2",name:"Osaaminen",color:"#B8B5D8",visible:true},{id:"h3",name:"Hyvinvointi",color:"#B5D8C7",visible:true},{id:"h4",name:"Palkitseminen",color:"#F5D5A0",visible:true}],
+    events:[{id:"h1e",month:0,title:"Kehityskeskustelut",categoryId:"h2",eventColor:null},{id:"h2e",month:2,title:"Kevätrekry",categoryId:"h1",eventColor:null},{id:"h3e",month:3,title:"Hyvinvointikysely",categoryId:"h3",eventColor:"#F59E0B"},{id:"h4e",month:5,title:"Bonus H1",categoryId:"h4",eventColor:"#22C55E"},{id:"h5e",month:7,title:"Syysrekry",categoryId:"h1",eventColor:null},{id:"h6e",month:10,title:"Palkka-arviointi",categoryId:"h4",eventColor:"#E8453C"}]},
+  {id:"project",name:"Projektin vuosikello",desc:"Projektin vaiheet ja virstanpylväät",icon:"🎯",
+    categories:[{id:"p1",name:"Suunnittelu",color:"#B8B5D8",visible:true},{id:"p2",name:"Toteutus",color:"#A8C5DA",visible:true},{id:"p3",name:"Testaus",color:"#F5D5A0",visible:true},{id:"p4",name:"Julkaisu",color:"#B5D8C7",visible:true}],events:[]},
+  {id:"education",name:"Koulun lukuvuosi",desc:"Lukukaudet, lomat ja tapahtumat",icon:"📚",
+    categories:[{id:"k1",name:"Opetus",color:"#A8C5DA",visible:true},{id:"k2",name:"Arviointi",color:"#E8B4B8",visible:true},{id:"k3",name:"Tapahtumat",color:"#F5D5A0",visible:true},{id:"k4",name:"Lomat",color:"#B5D8C7",visible:true}],
+    events:[{id:"k1e",month:0,title:"Kevätlukukausi",categoryId:"k1",eventColor:null},{id:"k2e",month:1,title:"Hiihtoloma",categoryId:"k4",eventColor:"#3B82F6"},{id:"k3e",month:4,title:"Kevätjuhla",categoryId:"k3",eventColor:"#EC4899"},{id:"k4e",month:5,title:"Kesäloma",categoryId:"k4",eventColor:"#22C55E"},{id:"k5e",month:7,title:"Syyslukukausi",categoryId:"k1",eventColor:null},{id:"k6e",month:11,title:"Joululoma",categoryId:"k4",eventColor:"#22C55E"}]},
+  {id:"marketing",name:"Markkinoinnin vuosikello",desc:"Kampanjat ja sisällöt",icon:"📣",
+    categories:[{id:"m1",name:"Kampanjat",color:"#E8B4B8",visible:true},{id:"m2",name:"Sisältö",color:"#A8C5DA",visible:true},{id:"m3",name:"Tapahtumat",color:"#F5D5A0",visible:true},{id:"m4",name:"Analytiikka",color:"#B5D8C7",visible:true}],events:[]},
 ];
 
-const TEMPLATE_EVENTS = [
-  { id: "e1", month: 0, title: "Vuosisuunnittelu", desc: "Strategian päivitys ja tavoitteiden asettaminen", categoryId: "cat1" },
-  { id: "e2", month: 0, title: "Tilinpäätös", desc: "Edellisen vuoden tilinpäätöksen valmistelu", categoryId: "cat3" },
-  { id: "e3", month: 1, title: "Kehityskeskustelut", desc: "Henkilökohtaiset kehityskeskustelut", categoryId: "cat4" },
-  { id: "e4", month: 2, title: "Q1-raportointi", desc: "Ensimmäisen neljänneksen raportointi", categoryId: "cat3" },
-  { id: "e5", month: 3, title: "Kevätviestintä", desc: "Sidosryhmäkirje ja tiedote", categoryId: "cat2" },
-  { id: "e6", month: 4, title: "Koulutuspäivä", desc: "Henkilöstön osaamisen kehittäminen", categoryId: "cat5" },
-  { id: "e7", month: 5, title: "Puolivuotisarvio", desc: "Strategian väliarviointi", categoryId: "cat1" },
-  { id: "e8", month: 5, title: "Kesäviestintä", desc: "Kesätiedote sidosryhmille", categoryId: "cat2" },
-  { id: "e9", month: 8, title: "Q3-raportointi", desc: "Kolmannen neljänneksen raportointi", categoryId: "cat3" },
-  { id: "e10", month: 9, title: "Budjetointi", desc: "Seuraavan vuoden budjetin valmistelu", categoryId: "cat3" },
-  { id: "e11", month: 10, title: "Kehittämispäivä", desc: "Organisaation kehittämispäivä", categoryId: "cat5" },
-  { id: "e12", month: 11, title: "Vuosikatsaus", desc: "Vuoden yhteenveto", categoryId: "cat2" },
-  { id: "e13", month: 11, title: "Pikkujoulut", desc: "Henkilöstötapahtuma", categoryId: "cat4" },
-];
+const uid=()=>"id_"+Math.random().toString(36).slice(2,10);
+const p2c=(cx,cy,r,d)=>{const rad=(d-90)*(Math.PI/180);return[cx+r*Math.cos(rad),cy+r*Math.sin(rad)]};
+const aP=(cx,cy,rO,rI,s,e)=>{const[a,b]=p2c(cx,cy,rO,s),[c,d]=p2c(cx,cy,rO,e),[f,g]=p2c(cx,cy,rI,e),[h,j]=p2c(cx,cy,rI,s),l=e-s>180?1:0;return`M${a},${b} A${rO},${rO} 0 ${l},1 ${c},${d} L${f},${g} A${rI},${rI} 0 ${l},0 ${h},${j} Z`};
 
-const uid = () => "id_" + Math.random().toString(36).slice(2, 10);
+const SK="vuosikello_v5";
+const sv=d=>{try{localStorage.setItem(SK,JSON.stringify(d))}catch{}};
+const ld=()=>{try{const r=localStorage.getItem(SK);if(r){const d=JSON.parse(r);if(Array.isArray(d)&&d.length)return d}}catch{};return null};
+const encS=c=>{try{return LZString.compressToEncodedURIComponent(JSON.stringify({name:c.name,events:c.events,categories:c.categories,settings:c.settings}))}catch{return null}};
+const decS=s=>{try{const j=LZString.decompressFromEncodedURIComponent(s);if(j){const d=JSON.parse(j);if(d.name)return d}}catch{};return null};
 
-const pol2cart = (cx, cy, r, angleDeg) => {
-  const rad = (angleDeg - 90) * (Math.PI / 180);
-  return [cx + r * Math.cos(rad), cy + r * Math.sin(rad)];
-};
+const DS={revolving:true,clockwise:true,startMonth:0,theme:"light"};
 
-const arcPath = (cx, cy, rOuter, rInner, startDeg, endDeg) => {
-  const [ox1, oy1] = pol2cart(cx, cy, rOuter, startDeg);
-  const [ox2, oy2] = pol2cart(cx, cy, rOuter, endDeg);
-  const [ix1, iy1] = pol2cart(cx, cy, rInner, endDeg);
-  const [ix2, iy2] = pol2cart(cx, cy, rInner, startDeg);
-  const large = endDeg - startDeg > 180 ? 1 : 0;
-  return `M${ox1},${oy1} A${rOuter},${rOuter} 0 ${large},1 ${ox2},${oy2} L${ix1},${iy1} A${rInner},${rInner} 0 ${large},0 ${ix2},${iy2} Z`;
-};
-
-/* ═══ Storage helpers ═══ */
-const STORAGE_KEY = "vuosikello_data_v2";
-
-function saveToStorage(clocks) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(clocks)); } catch {}
+// Theme hook
+function useTheme(themeId){
+  return BG_COLORS.find(t=>t.id===themeId)||BG_COLORS[0];
 }
 
-function loadFromStorage() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) { const d = JSON.parse(raw); if (Array.isArray(d) && d.length > 0) return d; }
-  } catch {}
-  return null;
+/* ═══ Mini Clock Preview for Templates ═══ */
+function MiniClock({categories,events,size:sz}){
+  const s=sz||90,cx=s/2,cy=s/2,iR=s*0.18,rS=s*0.25,rG=1;
+  const rW=(s/2-rS-2)/Math.max(categories.length,1)-rG;
+  return(<svg viewBox={`0 0 ${s} ${s}`} width={sz} height={sz} style={{display:"block"}}>
+    {categories.map((cat,ri)=>{
+      const rO=rS+(ri+1)*(rW+rG)-rG,rI=rS+ri*(rW+rG);
+      return(<g key={ri}>{Array.from({length:12},(_,mi)=>{
+        const hasEv=events.some(e=>e.month===mi&&e.categoryId===cat.id);
+        return<path key={mi} d={aP(cx,cy,rO,rI,mi*30,(mi+1)*30)} fill={cat.color} opacity={hasEv?0.7:0.25} stroke="#fff" strokeWidth="0.5"/>;
+      })}</g>);
+    })}
+    <circle cx={cx} cy={cy} r={rS} fill="#f8fafc" stroke="#e2e8f0" strokeWidth="0.5"/>
+    <circle cx={cx} cy={cy} r={iR} fill="#fff"/>
+    {/* Event dots */}
+    {events.slice(0,20).map((ev,i)=>{
+      const cat=categories.find(c=>c.id===ev.categoryId);if(!cat)return null;
+      const ri=categories.indexOf(cat),rI2=rS+ri*(rW+rG)+1,rO2=rS+(ri+1)*(rW+rG)-rG-1;
+      const rM=(rI2+rO2)/2,mid=ev.month*30+15;
+      const[x,y]=p2c(cx,cy,rM,mid);
+      return<circle key={i} cx={x} cy={y} r={Math.max(1.5,rW/4)} fill={ev.eventColor||"#fff"} opacity="0.9"/>;
+    })}
+  </svg>);
 }
 
-function encodeShareData(clock) {
-  try {
-    const json = JSON.stringify({ name: clock.name, events: clock.events, categories: clock.categories });
-    return LZString.compressToEncodedURIComponent(json);
-  } catch { return null; }
-}
+/* ═══ Onboarding ═══ */
+function Onboarding({onComplete}){
+  const[view,setView]=useState("gallery");
+  const[sel,setSel]=useState(null);
+  const[name,setName]=useState("");
+  const[sett,setSett]=useState({...DS});
 
-function decodeShareData(encoded) {
-  try {
-    const json = LZString.decompressFromEncodedURIComponent(encoded);
-    if (!json) return null;
-    const d = JSON.parse(json);
-    if (d.name && d.categories) return d;
-  } catch {}
-  return null;
-}
-
-/* ═══ Styles ═══ */
-const btnStyle = (bg) => ({
-  padding: "8px 16px", borderRadius: 8, border: "none",
-  background: bg, color: "#fff", fontSize: 13, fontWeight: 700,
-  cursor: "pointer", transition: "all 0.15s", fontFamily: "inherit"
-});
-const iconBtn = {
-  width: 30, height: 30, borderRadius: 7, border: "1px solid #e0d9cc",
-  background: "#fff", color: "#8b7e6a", fontSize: 13,
-  cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit"
-};
-const inputStyle = {
-  width: "100%", padding: "10px 14px", borderRadius: 10, border: "2px solid #e0d9cc",
-  background: "#fff", color: "#3d3528", fontSize: 14, marginBottom: 14, fontFamily: "inherit", outline: "none"
-};
-const labelStyle = { display: "block", color: "#8b7e6a", fontSize: 12, fontWeight: 700, marginBottom: 6 };
-const overlay = {
-  position: "fixed", inset: 0, background: "rgba(61,53,40,0.5)", zIndex: 1000,
-  display: "flex", alignItems: "center", justifyContent: "center", padding: 20
-};
-const modalBox = {
-  background: "#fdfcf9", border: "1px solid #e0d9cc", borderRadius: 16,
-  padding: 28, width: "100%", maxWidth: 520, maxHeight: "90vh", overflowY: "auto",
-  boxShadow: "0 16px 48px rgba(0,0,0,0.2)"
-};
-
-/* ═══ Onboarding Wizard ═══ */
-function OnboardingWizard({ onComplete }) {
-  const [step, setStep] = useState(1);
-  const [clockName, setClockName] = useState("");
-  const [cats, setCats] = useState([
-    { id: uid(), name: "", color: "#5B5EA6" },
-    { id: uid(), name: "", color: "#E8873D" },
-    { id: uid(), name: "", color: "#3B9B74" },
-  ]);
-  const presetColors = ["#5B5EA6","#E8873D","#3B9B74","#D4546A","#3A8FCD","#9B59B6","#E74C3C","#1ABC9C","#F39C12","#2C3E50"];
-
-  const addCat = () => setCats([...cats, { id: uid(), name: "", color: presetColors[cats.length % presetColors.length] }]);
-  const removeCat = (id) => cats.length > 1 && setCats(cats.filter(c => c.id !== id));
-  const updateCat = (id, field, val) => setCats(cats.map(c => c.id === id ? { ...c, [field]: val } : c));
-
-  const handleFinish = (useTemplate) => {
-    const validCats = cats.filter(c => c.name.trim());
-    const finalCats = validCats.length > 0 ? validCats : [...DEFAULT_CATEGORIES];
-    const clock = {
-      id: uid(),
-      name: clockName.trim() || "Vuosikello",
-      categories: finalCats,
-      events: useTemplate ? TEMPLATE_EVENTS.filter(e => finalCats.some(c => c.id === e.categoryId)) : []
-    };
-    // If using template but custom categories, remap events
-    if (useTemplate && validCats.length > 0) {
-      clock.events = TEMPLATE_EVENTS.map(e => ({ ...e, id: uid(), categoryId: validCats[Math.floor(Math.random() * validCats.length)].id }));
-    }
-    onComplete([clock]);
+  const go=t=>{setSel(t);setName(t.name==="Tyhjä vuosikello"?"":t.name);setView("setup")};
+  const finish=()=>{
+    const cats=sel.categories.map(c=>({...c,id:uid(),visible:true}));
+    const evts=sel.events.map(e=>{const oi=sel.categories.findIndex(c=>c.id===e.categoryId);return{...e,id:uid(),desc:e.desc||"",categoryId:cats[oi>=0?oi:0].id}});
+    onComplete([{id:uid(),name:name.trim()||"Vuosikello",categories:cats,events:evts,settings:sett}]);
   };
 
-  return (
-    <div style={{
-      minHeight: "100vh", background: "#f5f0e8", display: "flex", alignItems: "center", justifyContent: "center",
-      padding: 20, fontFamily: "'DM Sans', sans-serif"
-    }}>
-      <div style={{
-        background: "#fdfcf9", borderRadius: 20, padding: "40px 36px", maxWidth: 520, width: "100%",
-        boxShadow: "0 8px 40px rgba(0,0,0,0.08)", border: "1px solid #e0d9cc",
-        animation: "scaleIn 0.3s ease-out"
-      }}>
-        {/* Logo */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 32 }}>
-          <div style={{
-            width: 48, height: 48, borderRadius: 14,
-            background: "linear-gradient(135deg, #5B5EA6, #3A8FCD)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            color: "#fff", fontSize: 24, fontWeight: 800
-          }}>◎</div>
-          <div>
-            <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0 }}>Vuosikello</h1>
-            <div style={{ fontSize: 12, color: "#8b7e6a" }}>Luo oma vuosikellosi</div>
-          </div>
+  if(view==="gallery")return(
+    <div style={{minHeight:"100vh",background:"#f0f2f5",padding:"40px 20px"}}>
+      <div style={{maxWidth:960,margin:"0 auto"}}>
+        <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:36}}>
+          <div style={{width:48,height:48,borderRadius:14,background:"linear-gradient(135deg,#5B5EA6,#3A8FCD)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:24,fontWeight:800}}>◎</div>
+          <div><h1 style={{fontSize:26,fontWeight:800,margin:0}}>Vuosikello</h1><div style={{fontSize:14,color:"#94a3b8"}}>Valitse pohja tai aloita tyhjästä</div></div>
         </div>
-
-        {/* Step indicator */}
-        <div style={{ display: "flex", gap: 8, marginBottom: 28 }}>
-          {[1, 2, 3].map(s => (
-            <div key={s} style={{
-              flex: 1, height: 4, borderRadius: 2,
-              background: s <= step ? "#5B5EA6" : "#e0d9cc",
-              transition: "background 0.3s"
-            }} />
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:14}}>
+          {TEMPLATES.map(t=>(
+            <button key={t.id} onClick={()=>go(t)} style={{padding:"20px 16px",borderRadius:14,border:"1.5px solid #e2e8f0",background:"#fff",cursor:"pointer",textAlign:"center",fontFamily:"inherit",transition:"all 0.2s",display:"flex",flexDirection:"column",alignItems:"center"}}
+              onMouseEnter={e=>{e.currentTarget.style.borderColor="#5B5EA6";e.currentTarget.style.boxShadow="0 4px 20px rgba(91,94,166,0.12)"}}
+              onMouseLeave={e=>{e.currentTarget.style.borderColor="#e2e8f0";e.currentTarget.style.boxShadow="none"}}>
+              <MiniClock categories={t.categories} events={t.events} size={110}/>
+              <div style={{fontWeight:800,fontSize:14,marginTop:12,color:"#1a1a2e"}}>{t.name}</div>
+              <div style={{fontSize:11,color:"#94a3b8",lineHeight:1.4,marginTop:4}}>{t.desc}</div>
+              <div style={{fontSize:9,color:"#cbd5e1",marginTop:8}}>{t.categories.length} kehää · {t.events.length} tapahtumaa</div>
+            </button>
           ))}
-        </div>
-
-        {step === 1 && (
-          <div style={{ animation: "fadeIn 0.3s ease-out" }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, marginBottom: 8 }}>Anna vuosikellon nimi</h2>
-            <p style={{ fontSize: 13, color: "#8b7e6a", marginBottom: 20 }}>
-              Mikä on tämän vuosikellon tarkoitus? Esim. "Tiimin vuosikello 2026" tai "HR-prosessit".
-            </p>
-            <input value={clockName} onChange={e => setClockName(e.target.value)}
-              placeholder="Vuosikellon nimi..." style={{ ...inputStyle, fontSize: 16, padding: "14px 16px" }}
-              autoFocus onKeyDown={e => e.key === "Enter" && setStep(2)} />
-            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
-              <button onClick={() => setStep(2)} style={btnStyle("#5B5EA6")}>Seuraava →</button>
-            </div>
-          </div>
-        )}
-
-        {step === 2 && (
-          <div style={{ animation: "fadeIn 0.3s ease-out" }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, marginBottom: 8 }}>Määrittele kategoriat</h2>
-            <p style={{ fontSize: 13, color: "#8b7e6a", marginBottom: 20 }}>
-              Jokainen kategoria muodostaa oman kehänsä vuosikellossa. Voit lisätä myöhemminkin.
-            </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
-              {cats.map((c, i) => (
-                <div key={c.id} style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <input type="color" value={c.color} onChange={e => updateCat(c.id, "color", e.target.value)}
-                    style={{ width: 36, height: 36, border: "none", borderRadius: 8, cursor: "pointer", background: "transparent" }} />
-                  <input value={c.name} onChange={e => updateCat(c.id, "name", e.target.value)}
-                    placeholder={`Kategoria ${i + 1}`}
-                    style={{ ...inputStyle, marginBottom: 0, flex: 1 }} />
-                  {cats.length > 1 && (
-                    <button onClick={() => removeCat(c.id)} style={{ ...iconBtn, color: "#D4546A" }}>✕</button>
-                  )}
-                </div>
-              ))}
-            </div>
-            {cats.length < 8 && (
-              <button onClick={addCat} style={{ ...btnStyle("#f5f0e8"), color: "#6b5e4f", width: "100%", marginBottom: 16, border: "2px dashed #d5cec0" }}>
-                + Lisää kategoria
-              </button>
-            )}
-            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
-              <button onClick={() => setStep(1)} style={{ ...btnStyle("#e0d9cc"), color: "#6b5e4f" }}>← Takaisin</button>
-              <button onClick={() => setStep(3)} style={btnStyle("#5B5EA6")}>Seuraava →</button>
-            </div>
-          </div>
-        )}
-
-        {step === 3 && (
-          <div style={{ animation: "fadeIn 0.3s ease-out" }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, marginBottom: 8 }}>Miten haluat aloittaa?</h2>
-            <p style={{ fontSize: 13, color: "#8b7e6a", marginBottom: 24 }}>
-              Voit aloittaa tyhjästä tai käyttää valmista mallia inspiraationa.
-            </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <button onClick={() => handleFinish(false)} style={{
-                padding: "20px 24px", borderRadius: 14, border: "2px solid #e0d9cc",
-                background: "#fff", cursor: "pointer", textAlign: "left", fontFamily: "inherit",
-                transition: "all 0.15s"
-              }}>
-                <div style={{ fontWeight: 800, fontSize: 15, color: "#3d3528", marginBottom: 4 }}>📝 Tyhjä vuosikello</div>
-                <div style={{ fontSize: 12, color: "#8b7e6a" }}>Aloita puhtaalta pöydältä ja lisää tapahtumat itse.</div>
-              </button>
-              <button onClick={() => handleFinish(true)} style={{
-                padding: "20px 24px", borderRadius: 14, border: "2px solid #e0d9cc",
-                background: "#fff", cursor: "pointer", textAlign: "left", fontFamily: "inherit",
-                transition: "all 0.15s"
-              }}>
-                <div style={{ fontWeight: 800, fontSize: 15, color: "#3d3528", marginBottom: 4 }}>📋 Esimerkki&shy;pohja</div>
-                <div style={{ fontSize: 12, color: "#8b7e6a" }}>Aloita valmiilla tapahtumilla, joita voit muokata.</div>
-              </button>
-            </div>
-            <div style={{ display: "flex", justifyContent: "flex-start", marginTop: 16 }}>
-              <button onClick={() => setStep(2)} style={{ ...btnStyle("#e0d9cc"), color: "#6b5e4f" }}>← Takaisin</button>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/* ═══ Share Modal ═══ */
-function ShareModal({ clock, onClose }) {
-  const [copied, setCopied] = useState(false);
-  const encoded = encodeShareData(clock);
-  const shareUrl = encoded ? window.location.origin + window.location.pathname + "?d=" + encoded : null;
-  const tooLarge = !shareUrl || shareUrl.length > 8000;
-
-  const copyLink = () => {
-    if (shareUrl) {
-      navigator.clipboard.writeText(shareUrl).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
-    }
-  };
-
-  const exportJson = () => {
-    const blob = new Blob([JSON.stringify([clock], null, 2)], { type: "application/json" });
-    const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
-    a.download = (clock.name || "vuosikello") + ".json"; a.click();
-  };
-
-  return (
-    <div style={overlay} onClick={onClose}>
-      <div onClick={e => e.stopPropagation()} style={{ ...modalBox, maxWidth: 480 }}>
-        <h3 style={{ margin: "0 0 20px", color: "#3d3528", fontSize: 18, fontWeight: 800 }}>Jaa vuosikello</h3>
-
-        {!tooLarge && (
-          <>
-            <label style={labelStyle}>Jakolinkki (toimii Teamsissa ja selaimessa)</label>
-            <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-              <input value={shareUrl} readOnly style={{ ...inputStyle, marginBottom: 0, flex: 1, fontSize: 11, color: "#8b7e6a" }}
-                onClick={e => e.target.select()} />
-              <button onClick={copyLink} style={btnStyle(copied ? "#3B9B74" : "#5B5EA6")}>
-                {copied ? "✓ Kopioitu!" : "Kopioi"}
-              </button>
-            </div>
-            <p style={{ fontSize: 11, color: "#8b7e6a", marginBottom: 20 }}>
-              Kuka tahansa jolla on linkki voi avata tämän vuosikellon. Linkki sisältää kaiken datan — erillistä palvelinta ei tarvita.
-            </p>
-          </>
-        )}
-
-        {tooLarge && (
-          <p style={{ fontSize: 13, color: "#D4546A", marginBottom: 16, padding: "12px 16px", background: "#D4546A11", borderRadius: 10 }}>
-            Vuosikellossa on liikaa dataa jakolinkille. Käytä JSON-vientiä jakamiseen.
-          </p>
-        )}
-
-        <label style={labelStyle}>Tai vie JSON-tiedostona</label>
-        <button onClick={exportJson} style={{ ...btnStyle("#e0d9cc"), color: "#6b5e4f", width: "100%", marginBottom: 16 }}>
-          💾 Lataa JSON-tiedosto
-        </button>
-
-        <div style={{ borderTop: "1px solid #e0d9cc", paddingTop: 16 }}>
-          <label style={labelStyle}>Teams-ohje</label>
-          <p style={{ fontSize: 12, color: "#6b5e4f", lineHeight: 1.6 }}>
-            1. Kopioi jakolinkki yllä<br/>
-            2. Avaa Teams → kanava → "+" → "Website"<br/>
-            3. Liitä linkki ja anna nimi<br/>
-            4. Kaikki kanavan jäsenet näkevät saman kellon
-          </p>
-        </div>
-
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
-          <button onClick={onClose} style={{ ...btnStyle("#e0d9cc"), color: "#6b5e4f" }}>Sulje</button>
         </div>
       </div>
     </div>
   );
-}
 
-/* ═══ Circular Clock ═══ */
-function CircularClock({ events, categories, onMonthClick, onEventClick, clockTitle, selectedMonth }) {
-  const [hoveredEvent, setHoveredEvent] = useState(null);
-  const [tooltip, setTooltip] = useState(null);
-  const svgRef = useRef(null);
-
-  const size = 800;
-  const cx = size / 2, cy = size / 2;
-  const innerR = 80, monthLabelR = 105, ringStart = 120, ringGap = 4;
-  const ringWidth = Math.min(55, (size / 2 - ringStart - 60) / Math.max(categories.length, 1) - ringGap);
-  const outerR = ringStart + categories.length * (ringWidth + ringGap);
-  const legendRingWidth = 18;
-  const legendR = outerR + 6; // inner radius of legend ring
-  const catMap = useMemo(() => Object.fromEntries(categories.map((c, i) => [c.id, { ...c, ringIndex: i }])), [categories]);
-  const currentMonth = new Date().getMonth();
-
-  const handleMouseMove = (e, ev) => {
-    if (!svgRef.current) return;
-    const rect = svgRef.current.getBoundingClientRect();
-    setTooltip({ x: e.clientX - rect.left, y: e.clientY - rect.top, event: ev });
-  };
-
-  const eventsByRingMonth = useMemo(() => {
-    const map = {};
-    events.forEach(ev => {
-      const cat = catMap[ev.categoryId];
-      if (!cat) return;
-      const key = `${cat.ringIndex}-${ev.month}`;
-      if (!map[key]) map[key] = [];
-      map[key].push(ev);
-    });
-    return map;
-  }, [events, catMap]);
-
-  return (
-    <div style={{ position: "relative", width: "100%", maxWidth: size }}>
-      <svg ref={svgRef} viewBox={`0 0 ${size} ${size}`}
-        style={{ width: "100%", height: "auto", fontFamily: "'DM Sans', sans-serif" }}
-        onMouseLeave={() => setTooltip(null)}>
-        <defs>
-          <filter id="boxShadow"><feDropShadow dx="0" dy="1" stdDeviation="2" floodOpacity="0.3" /></filter>
-        </defs>
-
-        {categories.map((cat, ri) => {
-          const rO = ringStart + (ri + 1) * (ringWidth + ringGap) - ringGap;
-          const rI = ringStart + ri * (ringWidth + ringGap);
-          return (
-            <g key={cat.id}>
-              {MONTHS_FI.map((_, mi) => (
-                <path key={mi} d={arcPath(cx, cy, rO, rI, mi * 30, (mi + 1) * 30)}
-                  fill={mi === selectedMonth ? "#e8e4de" : mi === currentMonth ? "#f5f0e8" : ri % 2 === 0 ? "#f9f6f0" : "#f0ebe1"}
-                  stroke="#e0d9cc" strokeWidth="0.5" onClick={() => onMonthClick(mi)} style={{ cursor: "pointer" }} />
-              ))}
-            </g>
-          );
-        })}
-
-        {Array.from({ length: 12 }, (_, i) => {
-          const [x1, y1] = pol2cart(cx, cy, ringStart, i * 30);
-          const [x2, y2] = pol2cart(cx, cy, outerR, i * 30);
-          return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#d5cec0" strokeWidth="1" />;
-        })}
-
-        <circle cx={cx} cy={cy} r={ringStart} fill="#f9f6f0" stroke="#d5cec0" strokeWidth="1" />
-        <circle cx={cx} cy={cy} r={innerR} fill="#fff" stroke="#d5cec0" strokeWidth="1" />
-
-        {MONTHS_FI.map((name, i) => {
-          const midDeg = i * 30 + 15;
-          const [lx, ly] = pol2cart(cx, cy, monthLabelR, midDeg);
-          const rot = midDeg, flip = rot > 90 && rot < 270;
-          return (
-            <text key={i} x={lx} y={ly} textAnchor="middle" dominantBaseline="central"
-              fill={i === currentMonth ? "#2563eb" : "#6b5e4f"}
-              fontSize="11" fontWeight={i === currentMonth ? "800" : "600"}
-              transform={`rotate(${flip ? rot + 180 : rot}, ${lx}, ${ly})`}
-              onClick={() => onMonthClick(i)} style={{ cursor: "pointer", letterSpacing: "0.03em" }}>
-              {MONTHS_SHORT[i]}
-            </text>
-          );
-        })}
-
-        <text x={cx} y={cy - 12} textAnchor="middle" fill="#3d3528" fontSize="13" fontWeight="800" style={{ letterSpacing: "0.06em" }}>
-          {clockTitle || "VUOSIKELLO"}
-        </text>
-        <text x={cx} y={cy + 10} textAnchor="middle" fill="#8b7e6a" fontSize="20" fontWeight="800">
-          {new Date().getFullYear()}
-        </text>
-
-        {Object.entries(eventsByRingMonth).map(([key, evs]) => {
-          const [riStr, miStr] = key.split("-");
-          const ri = +riStr, mi = +miStr;
-          const cat = categories[ri];
-          if (!cat) return null;
-          const rI = ringStart + ri * (ringWidth + ringGap) + 2;
-          const rO = ringStart + (ri + 1) * (ringWidth + ringGap) - ringGap - 2;
-          const rMid = (rI + rO) / 2;
-          const startDeg = mi * 30 + 1, endDeg = (mi + 1) * 30 - 1;
-          const n = evs.length, sliceArc = (endDeg - startDeg) / n;
-
-          return evs.map((ev, ei) => {
-            const evStart = startDeg + ei * sliceArc + 0.5;
-            const evEnd = startDeg + (ei + 1) * sliceArc - 0.5;
-            const evMidDeg = (evStart + evEnd) / 2;
-            const boxPath = arcPath(cx, cy, rO, rI, evStart, evEnd);
-            const isHovered = hoveredEvent === ev.id;
-            const [tx, ty] = pol2cart(cx, cy, rMid, evMidDeg);
-            const textRot = evMidDeg, flipText = textRot > 90 && textRot < 270;
-            const finalRot = flipText ? textRot + 180 : textRot;
-            const arcLen = (Math.PI * 2 * rMid * (evEnd - evStart)) / 360;
-            const maxChars = Math.max(3, Math.floor(arcLen / 6.5));
-            let displayTitle = ev.title;
-            if (displayTitle.length > maxChars) displayTitle = displayTitle.slice(0, maxChars - 1) + "\u2026";
-
-            return (
-              <g key={ev.id}
-                onMouseEnter={() => setHoveredEvent(ev.id)}
-                onMouseLeave={() => { setHoveredEvent(null); setTooltip(null); }}
-                onMouseMove={(e) => handleMouseMove(e, ev)}
-                onClick={(e) => { e.stopPropagation(); onEventClick(ev); }}
-                style={{ cursor: "pointer" }}>
-                <path d={boxPath} fill={cat.color} opacity={isHovered ? 1 : 0.85}
-                  stroke={isHovered ? "#fff" : "none"} strokeWidth={isHovered ? 2 : 0}
-                  style={{ transition: "opacity 0.15s" }}
-                  filter={isHovered ? "url(#boxShadow)" : undefined} />
-                <text x={tx} y={ty} textAnchor="middle" dominantBaseline="central"
-                  fill="#fff" fontSize={rO - rI > 40 ? "10" : "9"} fontWeight="700"
-                  transform={`rotate(${finalRot}, ${tx}, ${ty})`}
-                  style={{ pointerEvents: "none", textShadow: "0 1px 2px rgba(0,0,0,0.3)" }}>
-                  {displayTitle}
-                </text>
-              </g>
-            );
-          });
-        })}
-
-        {/* Outer category legend ring */}
-        {categories.map((cat, ri) => {
-          const totalCats = categories.length;
-          const sliceDeg = 360 / totalCats;
-          const startDeg = ri * sliceDeg;
-          const endDeg = (ri + 1) * sliceDeg;
-          const rI = legendR;
-          const rO = legendR + legendRingWidth;
-          const midDeg = (startDeg + endDeg) / 2;
-          const pathId = `legendArc_${ri}`;
-
-          // Text path - clockwise arc at mid radius
-          const rText = rI + legendRingWidth / 2;
-          // For text readability, flip text on bottom half
-          const needsFlip = midDeg > 90 && midDeg < 270;
-          const tStartDeg = needsFlip ? endDeg - 1 : startDeg + 1;
-          const tEndDeg = needsFlip ? startDeg + 1 : endDeg - 1;
-          const [tsx, tsy] = pol2cart(cx, cy, rText, tStartDeg);
-          const [tex, tey] = pol2cart(cx, cy, rText, tEndDeg);
-          const sweepFlag = needsFlip ? 0 : 1;
-
-          return (
-            <g key={cat.id + "_legend"}>
-              <path d={arcPath(cx, cy, rO, rI, startDeg, endDeg)}
-                fill={cat.color} opacity="0.9" stroke="#fdfcf9" strokeWidth="2" />
-              <defs>
-                <path id={pathId} d={`M${tsx},${tsy} A${rText},${rText} 0 0,${sweepFlag} ${tex},${tey}`} fill="none" />
-              </defs>
-              <text fontSize="9" fontWeight="700" fill="#fff" style={{ letterSpacing: "0.06em" }}>
-                <textPath href={`#${pathId}`} startOffset="50%" textAnchor="middle">
-                  {cat.name}
-                </textPath>
-              </text>
-            </g>
-          );
-        })}
-      </svg>
-
-      {tooltip && (
-        <div style={{
-          position: "absolute", left: tooltip.x + 12, top: tooltip.y - 10,
-          background: "#1e1b16", color: "#f5f0e8", padding: "10px 14px",
-          borderRadius: 10, fontSize: 13, maxWidth: 260, zIndex: 50,
-          boxShadow: "0 8px 24px rgba(0,0,0,0.35)", pointerEvents: "none",
-          border: `2px solid ${catMap[tooltip.event.categoryId]?.color || "#888"}`
-        }}>
-          <div style={{ fontWeight: 700, marginBottom: 4 }}>{tooltip.event.title}</div>
-          {tooltip.event.desc && <div style={{ fontSize: 12, color: "#c4b99a", lineHeight: 1.4 }}>{tooltip.event.desc}</div>}
-          <div style={{ fontSize: 10, color: "#8b7e6a", marginTop: 6 }}>
-            {MONTHS_FI[tooltip.event.month]} &middot; {catMap[tooltip.event.categoryId]?.name}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ═══ Timeline View (table) ═══ */
-function TimelineView({ events, categories, onMonthClick, onEventClick }) {
-  const currentMonth = new Date().getMonth();
-  return (
-    <div style={{ overflowX: "auto", padding: "12px 0", borderRadius: 12 }}>
-      <div style={{ minWidth: 1100 }}>
-        <div style={{ display: "flex", borderBottom: "2px solid #e0d9cc" }}>
-          <div style={{ width: 100, flexShrink: 0 }} />
-          {MONTHS_FI.map((name, i) => (
-            <div key={i} onClick={() => onMonthClick(i)} style={{
-              flex: 1, textAlign: "center", padding: "8px 4px", cursor: "pointer",
-              fontSize: 11, fontWeight: 700, color: i === currentMonth ? "#2563eb" : "#6b5e4f",
-              background: i === currentMonth ? "#eef4ff" : "transparent", borderLeft: "1px solid #e0d9cc"
-            }}>{MONTHS_SHORT[i]}</div>
-          ))}
-        </div>
-        {categories.map((cat, ri) => (
-          <div key={cat.id} style={{ display: "flex", borderBottom: "1px solid #ede8df", minHeight: 44 }}>
-            <div style={{
-              width: 100, flexShrink: 0, display: "flex", alignItems: "center", gap: 6,
-              padding: "4px 8px", fontSize: 11, fontWeight: 700, color: "#6b5e4f",
-              background: ri % 2 === 0 ? "#faf7f2" : "#f5f0e8"
-            }}>
-              <span style={{ width: 8, height: 8, borderRadius: 2, background: cat.color, flexShrink: 0 }} />
-              {cat.name}
-            </div>
-            {MONTHS_FI.map((_, mi) => {
-              const me = events.filter(e => e.month === mi && e.categoryId === cat.id);
-              return (
-                <div key={mi} onClick={() => onMonthClick(mi)} style={{
-                  flex: 1, borderLeft: "1px solid #ede8df", padding: "3px 2px",
-                  background: mi === currentMonth ? "#f0f4ff" : ri % 2 === 0 ? "#fdfcf9" : "#f9f6f0",
-                  display: "flex", flexDirection: "column", gap: 2, cursor: "pointer"
-                }}>
-                  {me.map(ev => (
-                    <div key={ev.id} onClick={(e) => { e.stopPropagation(); onEventClick(ev); }}
-                      style={{
-                        fontSize: 10, padding: "3px 5px", borderRadius: 4,
-                        background: cat.color, color: "#fff", fontWeight: 600,
-                        whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                        cursor: "pointer", opacity: 0.88
-                      }}
-                      onMouseEnter={e => e.currentTarget.style.opacity = "1"}
-                      onMouseLeave={e => e.currentTarget.style.opacity = "0.88"}>
-                      {ev.title}
-                    </div>
-                  ))}
-                </div>
-              );
-            })}
-          </div>
+  return(<div style={{minHeight:"100vh",background:"#f0f2f5",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+    <div style={{background:"#fff",borderRadius:20,padding:"32px 28px",maxWidth:500,width:"100%",boxShadow:"0 4px 24px rgba(0,0,0,0.06)",animation:"fadeIn 0.3s"}}>
+      <button onClick={()=>setView("gallery")} style={{background:"none",border:"none",color:"#5B5EA6",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",marginBottom:16,padding:0}}>← Takaisin pohjiin</button>
+      <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:24}}>
+        <MiniClock categories={sel.categories} events={sel.events} size={70}/>
+        <div><h2 style={{fontSize:18,fontWeight:800,margin:0}}>{sel.name}</h2><div style={{fontSize:12,color:"#94a3b8"}}>{sel.desc}</div></div>
+      </div>
+      <label style={lbl}>Vuosikellon nimi</label>
+      <input value={name} onChange={e=>setName(e.target.value)} placeholder="Anna nimi..." style={{...inp,fontSize:15,padding:"12px 14px"}} autoFocus/>
+      <label style={lbl}>Kellon tyyppi</label>
+      <div style={{display:"flex",marginBottom:14,borderRadius:8,overflow:"hidden",border:"1.5px solid #e2e8f0"}}>
+        {[{v:true,l:"Pyörivä",d:"Kuluva kk ylös"},{v:false,l:"Staattinen",d:"Tammi ylhäällä"}].map(o=>(
+          <button key={String(o.v)} onClick={()=>setSett({...sett,revolving:o.v})} style={{flex:1,padding:"10px 8px",border:"none",fontSize:12,fontWeight:700,fontFamily:"inherit",cursor:"pointer",background:sett.revolving===o.v?"#5B5EA6":"#f8fafc",color:sett.revolving===o.v?"#fff":"#64748b",display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+            <span>{o.l}</span><span style={{fontSize:9,opacity:0.7}}>{o.d}</span></button>
         ))}
       </div>
+      <label style={lbl}>Suunta</label>
+      <div style={{display:"flex",marginBottom:14,borderRadius:8,overflow:"hidden",border:"1.5px solid #e2e8f0"}}>
+        {[{v:true,l:"Myötäpäivään ↻"},{v:false,l:"Vastapäivään ↺"}].map(o=>(
+          <button key={String(o.v)} onClick={()=>setSett({...sett,clockwise:o.v})} style={{flex:1,padding:"10px",border:"none",fontSize:12,fontWeight:700,fontFamily:"inherit",cursor:"pointer",background:sett.clockwise===o.v?"#5B5EA6":"#f8fafc",color:sett.clockwise===o.v?"#fff":"#64748b"}}>{o.l}</button>
+        ))}
+      </div>
+      <label style={lbl}>Teema</label>
+      <div style={{display:"flex",gap:6,marginBottom:20}}>
+        {BG_COLORS.map(t=><button key={t.id} onClick={()=>setSett({...sett,theme:t.id})} style={{flex:1,padding:"8px",borderRadius:8,border:sett.theme===t.id?"2px solid #5B5EA6":"2px solid transparent",background:t.bg,color:t.text,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{t.name}</button>)}
+      </div>
+      <button onClick={finish} style={{width:"100%",padding:"12px",borderRadius:10,border:"none",background:"#5B5EA6",color:"#fff",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Luo vuosikello →</button>
     </div>
-  );
+  </div>);
 }
 
-/* ═══ Visual Vertical Timeline ═══ */
-function VisualTimeline({ events, categories, onEventClick, clockTitle }) {
-  const catMap = useMemo(() => Object.fromEntries(categories.map(c => [c.id, c])), [categories]);
-  const currentMonth = new Date().getMonth();
-  const year = new Date().getFullYear();
+/* ═══ Shared styles (functions for theme) ═══ */
+const lbl={display:"block",color:"#64748b",fontSize:11,fontWeight:700,marginBottom:4,letterSpacing:"0.04em"};
+const inp={width:"100%",padding:"9px 12px",borderRadius:8,border:"1.5px solid #e2e8f0",background:"#fff",color:"#1a1a2e",fontSize:13,marginBottom:12,fontFamily:"inherit",outline:"none"};
+const makeBtn=(th)=>(bg,color)=>({padding:"7px 14px",borderRadius:8,border:"none",background:bg||th.card,color:color||th.text,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"});
+const makeOvr=(th)=>({position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:16,backdropFilter:"blur(4px)"});
+const makeMod=(th)=>({background:th.card,borderRadius:16,padding:24,width:"100%",maxWidth:480,maxHeight:"90vh",overflowY:"auto",boxShadow:"0 24px 48px rgba(0,0,0,0.2)",color:th.text,border:`1px solid ${th.border}`});
 
-  const monthGroups = MONTHS_FI.map((name, i) => ({
-    name, short: MONTHS_SHORT[i], index: i,
-    events: events.filter(e => e.month === i)
-  }));
+/* ═══ Circular Clock ═══ */
+function CircularClock({events,categories,onMonthClick,onEventClick,clockTitle,selectedMonth,settings,theme:th}){
+  const[hov,setHov]=useState(null);const[tip,setTip]=useState(null);const ref=useRef(null);
+  const vc=categories.filter(c=>c.visible);
+  const sz=780,cx=sz/2,cy=sz/2,iR=85,mlR=108,rS=125,rG=3;
+  const rW=Math.min(55,(sz/2-rS-16)/Math.max(vc.length,1)-rG);
+  const oR=rS+vc.length*(rW+rG);
+  const cM=useMemo(()=>Object.fromEntries(vc.map((c,i)=>[c.id,{...c,ri:i}])),[vc]);
+  const cm=new Date().getMonth();
+  const s=settings||DS;
+  const rOff=s.revolving?-(cm*30+15):-(s.startMonth*30);
+  const dir=s.clockwise?1:-1;
+  const mD=mi=>mi*30*dir+rOff;
+  const hMM=(e,ev)=>{if(!ref.current)return;const r=ref.current.getBoundingClientRect();setTip({x:e.clientX-r.left,y:e.clientY-r.top,ev})};
+  const eRM=useMemo(()=>{const m={};events.forEach(ev=>{const c=cM[ev.categoryId];if(!c)return;const k=`${c.ri}-${ev.month}`;if(!m[k])m[k]=[];m[k].push(ev)});return m},[events,cM]);
 
-  // Q-labels
-  const quarters = ["Q1","Q1","Q1","Q2","Q2","Q2","Q3","Q3","Q3","Q4","Q4","Q4"];
+  return(<div style={{position:"relative",width:"100%",maxWidth:sz,margin:"0 auto"}}>
+    <svg ref={ref} viewBox={`0 0 ${sz} ${sz}`} style={{width:"100%",height:"auto",fontFamily:"'DM Sans',sans-serif"}} onMouseLeave={()=>setTip(null)}>
+      <defs><filter id="bs"><feDropShadow dx="0" dy="1" stdDeviation="1.5" floodOpacity="0.2"/></filter></defs>
+      {vc.map((cat,ri)=>{const rO2=rS+(ri+1)*(rW+rG)-rG,rI2=rS+ri*(rW+rG);
+        return(<g key={cat.id}>{MF.map((_,mi)=>{const sd=mD(mi),ed=mD(mi)+30*dir,s2=Math.min(sd,ed),e2=Math.max(sd,ed);
+          return<path key={mi} d={aP(cx,cy,rO2,rI2,s2,e2)} fill={cat.color} opacity={mi===selectedMonth?0.75:mi===cm?0.6:0.35} stroke={th.card} strokeWidth="1" onClick={()=>onMonthClick(mi)} style={{cursor:"pointer"}}/>;
+        })}</g>);})}
+      {Array.from({length:12},(_,i)=>{const d=mD(i),[x1,y1]=p2c(cx,cy,rS,d),[x2,y2]=p2c(cx,cy,oR,d);return<line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke={th.card+"99"} strokeWidth="1.5"/>})}
+      <circle cx={cx} cy={cy} r={rS} fill={th.cardAlt} stroke={th.border} strokeWidth="1"/>
+      <circle cx={cx} cy={cy} r={iR} fill={th.card} stroke={th.border} strokeWidth="1"/>
+      {MF.map((nm,i)=>{const md=mD(i)+15*dir,[lx,ly]=p2c(cx,cy,mlR,md),rot=md,fl=rot>90&&rot<270;
+        return<text key={i} x={lx} y={ly} textAnchor="middle" dominantBaseline="central" fill={i===cm?"#5B5EA6":th.muted} fontSize="10" fontWeight={i===cm?"800":"600"} transform={`rotate(${fl?rot+180:rot},${lx},${ly})`} onClick={()=>onMonthClick(i)} style={{cursor:"pointer"}}>{MS[i]}</text>})}
+      <text x={cx} y={cy-14} textAnchor="middle" fill={th.text} fontSize="12" fontWeight="800" style={{letterSpacing:"0.06em"}}>{clockTitle||"VUOSIKELLO"}</text>
+      <text x={cx} y={cy+6} textAnchor="middle" fill="#5B5EA6" fontSize="22" fontWeight="800">{new Date().getFullYear()}</text>
+      <text x={cx} y={cy+22} textAnchor="middle" fill={th.sub} fontSize="9" fontWeight="600">{events.length} tapahtumaa</text>
 
-  return (
-    <div style={{ maxWidth: 720, margin: "0 auto", padding: "0 16px" }}>
-      {/* Header */}
-      <div style={{
-        textAlign: "center", padding: "32px 0 28px",
-        borderBottom: "2px solid #e0d9cc", marginBottom: 0
-      }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: "#8b7e6a", letterSpacing: "0.2em", textTransform: "uppercase", marginBottom: 6 }}>
-          {clockTitle || "Vuosikello"}
-        </div>
-        <div style={{ fontSize: 32, fontWeight: 800, color: "#3d3528", letterSpacing: "-0.03em", lineHeight: 1 }}>
-          Aikajana {year}
-        </div>
-        {/* Legend */}
-        <div style={{ display: "flex", justifyContent: "center", gap: 16, flexWrap: "wrap", marginTop: 16 }}>
-          {categories.map(c => (
-            <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "#6b5e4f", fontWeight: 600 }}>
-              <span style={{ width: 10, height: 10, borderRadius: 3, background: c.color, boxShadow: `0 2px 6px ${c.color}44` }} />
-              {c.name}
-            </div>
-          ))}
-        </div>
-      </div>
+      {Object.entries(eRM).map(([key,evs])=>{const[riS,miS]=key.split("-");const ri=+riS,mi=+miS;const cat=vc[ri];if(!cat)return null;
+        const rI2=rS+ri*(rW+rG)+1.5,rO2=rS+(ri+1)*(rW+rG)-rG-1.5,rM=(rI2+rO2)/2;
+        const sd=mD(mi)+0.6*dir,ed=mD(mi)+30*dir-0.6*dir,s2=Math.min(sd,ed),e2=Math.max(sd,ed);
+        const n=evs.length,sl=(e2-s2)/n;
+        return evs.map((ev,ei)=>{const es=s2+ei*sl+0.3,ee=s2+(ei+1)*sl-0.3,mid=(es+ee)/2;
+          const bp=aP(cx,cy,rO2,rI2,es,ee),isH=hov===ev.id;
+          const[tx,ty]=p2c(cx,cy,rM,mid),tr=mid,fl=tr>90&&tr<270,fr=fl?tr+180:tr;
+          const al=(Math.PI*2*rM*(ee-es))/360,mc=Math.max(2,Math.floor(al/6.2));
+          let dt=ev.title;if(dt.length>mc)dt=dt.slice(0,mc-1)+"\u2026";
+          const fc=ev.eventColor||th.card,tc=ev.eventColor?"#fff":th.text;
+          return(<g key={ev.id} onMouseEnter={()=>setHov(ev.id)} onMouseLeave={()=>{setHov(null);setTip(null)}} onMouseMove={e=>hMM(e,ev)} onClick={e=>{e.stopPropagation();onEventClick(ev)}} style={{cursor:"pointer"}}>
+            <path d={bp} fill={fc} opacity={isH?1:ev.eventColor?0.9:0.88} stroke={isH?th.text:th.card+"66"} strokeWidth={isH?1.5:0.5} filter={isH?"url(#bs)":undefined}/>
+            <text x={tx} y={ty} textAnchor="middle" dominantBaseline="central" fill={tc} fontSize={rO2-rI2>40?"9.5":"8.5"} fontWeight="700" transform={`rotate(${fr},${tx},${ty})`} style={{pointerEvents:"none",textShadow:ev.eventColor?"0 1px 2px rgba(0,0,0,0.25)":"none"}}>{dt}</text>
+          </g>)});})}
 
-      {/* Timeline body */}
-      <div style={{ position: "relative", padding: "0 0 40px" }}>
-        {/* Central vertical line */}
-        <div style={{
-          position: "absolute", left: 32, top: 0, bottom: 0, width: 2,
-          background: "linear-gradient(180deg, #d5cec0 0%, #e0d9cc 50%, #d5cec0 100%)"
-        }} />
+      {vc.map((cat,ri)=>{const rM=rS+ri*(rW+rG)+rW/2,pid=`cA${ri}`;
+        const la=mD(6.5),lb=mD(8),s2=Math.min(la,lb),e2=Math.max(la,lb);
+        const[sx,sy]=p2c(cx,cy,rM,s2),[ex,ey]=p2c(cx,cy,rM,e2);
+        return(<g key={cat.id+"_l"}><defs><path id={pid} d={`M${sx},${sy} A${rM},${rM} 0 0,1 ${ex},${ey}`} fill="none"/></defs>
+          <text fontSize="8" fontWeight="700" fill={th.text+"55"} style={{letterSpacing:"0.06em"}}><textPath href={`#${pid}`} startOffset="50%" textAnchor="middle">{cat.name}</textPath></text></g>)})}
+    </svg>
+    {tip&&<div style={{position:"absolute",left:Math.min(tip.x+12,sz-220),top:tip.y-10,background:"#1a1a2e",color:"#f8fafc",padding:"10px 14px",borderRadius:10,fontSize:12,maxWidth:240,zIndex:50,boxShadow:"0 8px 24px rgba(0,0,0,0.3)",pointerEvents:"none",border:`2px solid ${tip.ev.eventColor||cM[tip.ev.categoryId]?.color||"#5B5EA6"}`}}>
+      <div style={{fontWeight:700,marginBottom:3}}>{tip.ev.title}</div>
+      {tip.ev.desc&&<div style={{fontSize:11,color:"#94a3b8",lineHeight:1.4}}>{tip.ev.desc}</div>}
+      <div style={{fontSize:9,color:"#64748b",marginTop:4}}>{MF[tip.ev.month]} · {cM[tip.ev.categoryId]?.name||""}</div>
+    </div>}
+  </div>);
+}
 
-        {monthGroups.map((mg, idx) => {
-          const isCurrent = mg.index === currentMonth;
-          const hasEvents = mg.events.length > 0;
-          const isNewQuarter = idx % 3 === 0;
-
-          return (
-            <div key={mg.index}>
-              {/* Quarter divider */}
-              {isNewQuarter && (
-                <div style={{
-                  display: "flex", alignItems: "center", gap: 12,
-                  padding: idx === 0 ? "24px 0 16px" : "28px 0 16px",
-                  marginLeft: 22
-                }}>
-                  <div style={{
-                    width: 22, height: 22, borderRadius: 6,
-                    background: "#3d3528", color: "#fff",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 9, fontWeight: 800, letterSpacing: "0.04em"
-                  }}>{quarters[idx]}</div>
-                  <div style={{ flex: 1, height: 1, background: "#d5cec0" }} />
-                </div>
-              )}
-
-              {/* Month row */}
-              <div style={{
-                display: "flex", alignItems: "flex-start", gap: 0,
-                position: "relative",
-                padding: hasEvents ? "0 0 6px" : "0",
-                minHeight: hasEvents ? "auto" : 40
-              }}>
-                {/* Left: month indicator on the line */}
-                <div style={{
-                  width: 64, flexShrink: 0, display: "flex", flexDirection: "column",
-                  alignItems: "center", position: "relative", paddingTop: 2
-                }}>
-                  {/* Dot on the line */}
-                  <div style={{
-                    width: isCurrent ? 18 : 12, height: isCurrent ? 18 : 12,
-                    borderRadius: "50%",
-                    background: isCurrent ? "#5B5EA6" : hasEvents ? "#3d3528" : "#d5cec0",
-                    border: isCurrent ? "3px solid #5B5EA644" : "none",
-                    boxShadow: isCurrent ? "0 0 12px #5B5EA644" : "none",
-                    position: "relative", zIndex: 2,
-                    transition: "all 0.2s"
-                  }} />
-                  {/* Month number */}
-                  <div style={{
-                    fontSize: 9, fontWeight: 800, color: isCurrent ? "#5B5EA6" : "#8b7e6a",
-                    marginTop: 4, letterSpacing: "0.02em"
-                  }}>
-                    {String(mg.index + 1).padStart(2, "0")}
-                  </div>
-                </div>
-
-                {/* Right: content */}
-                <div style={{ flex: 1, paddingBottom: 12, paddingTop: 0 }}>
-                  {/* Month name header */}
-                  <div style={{
-                    display: "flex", alignItems: "baseline", gap: 8,
-                    marginBottom: hasEvents ? 8 : 0,
-                    marginTop: -2
-                  }}>
-                    <span style={{
-                      fontSize: 16, fontWeight: 800,
-                      color: isCurrent ? "#5B5EA6" : "#3d3528"
-                    }}>
-                      {mg.name}
-                    </span>
-                    {isCurrent && (
-                      <span style={{
-                        fontSize: 9, fontWeight: 700, color: "#fff",
-                        background: "#5B5EA6", padding: "2px 8px", borderRadius: 99,
-                        letterSpacing: "0.05em"
-                      }}>NYT</span>
-                    )}
-                    {hasEvents && (
-                      <span style={{ fontSize: 11, color: "#8b7e6a", fontWeight: 500 }}>
-                        {mg.events.length} {mg.events.length === 1 ? "tapahtuma" : "tapahtumaa"}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Event cards */}
-                  {mg.events.map((ev, ei) => {
-                    const cat = catMap[ev.categoryId];
-                    return (
-                      <div key={ev.id} onClick={() => onEventClick(ev)}
-                        style={{
-                          background: "#fff",
-                          borderRadius: 10,
-                          padding: "12px 16px",
-                          marginBottom: 6,
-                          cursor: "pointer",
-                          borderLeft: `4px solid ${cat?.color || "#d5cec0"}`,
-                          boxShadow: "0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.03)",
-                          transition: "all 0.2s ease",
-                          position: "relative"
-                        }}
-                        onMouseEnter={e => {
-                          e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.08), 0 8px 24px rgba(0,0,0,0.06)";
-                          e.currentTarget.style.transform = "translateY(-1px)";
-                        }}
-                        onMouseLeave={e => {
-                          e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.03)";
-                          e.currentTarget.style.transform = "translateY(0)";
-                        }}>
-                        {/* Top row: title + category */}
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: ev.desc ? 6 : 0 }}>
-                          <span style={{ fontWeight: 700, fontSize: 14, color: "#3d3528", lineHeight: 1.3 }}>
-                            {ev.title}
-                          </span>
-                          {cat && (
-                            <span style={{
-                              fontSize: 9, fontWeight: 700, padding: "3px 8px", borderRadius: 99,
-                              background: cat.color + "14", color: cat.color,
-                              whiteSpace: "nowrap", flexShrink: 0, letterSpacing: "0.02em"
-                            }}>{cat.name}</span>
-                          )}
-                        </div>
-                        {/* Description */}
-                        {ev.desc && (
-                          <div style={{ fontSize: 12, color: "#6b5e4f", lineHeight: 1.6 }}>
-                            {ev.desc}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-
-                  {/* Empty month subtle indicator */}
-                  {!hasEvents && (
-                    <div style={{
-                      fontSize: 11, color: "#c4b9a8", fontStyle: "italic", paddingTop: 2
-                    }}>—</div>
-                  )}
-                </div>
+/* ═══ Timeline View ═══ */
+function TimelineView({events,categories,onEventClick,clockTitle,theme:th}){
+  const cM=useMemo(()=>Object.fromEntries(categories.map(c=>[c.id,c])),[categories]);
+  const cm=new Date().getMonth();
+  const groups=MF.map((n,i)=>({name:n,i,events:events.filter(e=>e.month===i)}));
+  return(<div style={{maxWidth:700,margin:"0 auto",padding:"0 8px"}}>
+    <div style={{textAlign:"center",padding:"20px 0 16px",borderBottom:`1px solid ${th.border}`}}>
+      <div style={{fontSize:10,fontWeight:700,color:th.sub,letterSpacing:"0.15em",textTransform:"uppercase"}}>{clockTitle}</div>
+      <div style={{fontSize:28,fontWeight:800,color:th.text}}>Aikajana {new Date().getFullYear()}</div>
+    </div>
+    <div style={{position:"relative",padding:"0 0 30px"}}>
+      <div style={{position:"absolute",left:30,top:0,bottom:0,width:2,background:th.border}}/>
+      {["Q1","Q2","Q3","Q4"].map((q,qi)=>(
+        <div key={q}>
+          <div style={{display:"flex",alignItems:"center",gap:10,padding:qi===0?"20px 0 12px":"24px 0 12px",marginLeft:20}}>
+            <div style={{width:22,height:22,borderRadius:6,background:th.text,color:th.card,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:800}}>{q}</div>
+            <div style={{flex:1,height:1,background:th.border}}/>
+          </div>
+          {groups.slice(qi*3,qi*3+3).map(mg=>{
+            const isCur=mg.i===cm,hasEv=mg.events.length>0;
+            return(<div key={mg.i} style={{display:"flex",gap:0,position:"relative",minHeight:hasEv?"auto":38}}>
+              <div style={{width:62,flexShrink:0,display:"flex",flexDirection:"column",alignItems:"center",paddingTop:2}}>
+                <div style={{width:isCur?16:10,height:isCur?16:10,borderRadius:"50%",background:isCur?"#5B5EA6":hasEv?th.text:th.border,border:isCur?"3px solid #5B5EA644":"none",zIndex:2}}/>
+                <div style={{fontSize:8,fontWeight:800,color:isCur?"#5B5EA6":th.sub,marginTop:3}}>{String(mg.i+1).padStart(2,"0")}</div>
               </div>
-            </div>
-          );
-        })}
-
-        {/* End cap */}
-        <div style={{
-          position: "absolute", left: 27, bottom: 10,
-          width: 12, height: 12, borderRadius: "50%",
-          border: "2px solid #d5cec0", background: "#f5f0e8"
-        }} />
-      </div>
-
-      {/* Footer stats */}
-      <div style={{
-        display: "flex", justifyContent: "center", gap: 32, padding: "20px 0",
-        borderTop: "1px solid #e0d9cc"
-      }}>
-        <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 22, fontWeight: 800, color: "#3d3528" }}>{events.length}</div>
-          <div style={{ fontSize: 10, fontWeight: 600, color: "#8b7e6a", letterSpacing: "0.05em" }}>TAPAHTUMAA</div>
-        </div>
-        <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 22, fontWeight: 800, color: "#3d3528" }}>{categories.length}</div>
-          <div style={{ fontSize: 10, fontWeight: 600, color: "#8b7e6a", letterSpacing: "0.05em" }}>KATEGORIAA</div>
-        </div>
-        <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 22, fontWeight: 800, color: "#3d3528" }}>{monthGroups.filter(m => m.events.length > 0).length}</div>
-          <div style={{ fontSize: 10, fontWeight: 600, color: "#8b7e6a", letterSpacing: "0.05em" }}>AKTIIVISTA KK</div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ═══ Month Panel ═══ */
-function MonthPanel({ month, events, categories, onAdd, onEdit, onDelete, onClose }) {
-  const catMap = useMemo(() => Object.fromEntries(categories.map(c => [c.id, c])), [categories]);
-  const monthEvents = events.filter(e => e.month === month);
-  return (
-    <div style={{
-      background: "#fdfcf9", border: "1px solid #e0d9cc", borderRadius: 14,
-      padding: "24px 20px", marginTop: 16, animation: "fadeSlideIn 0.25s ease-out"
-    }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <h3 style={{ margin: 0, color: "#3d3528", fontSize: 18, fontWeight: 800 }}>
-          {MONTHS_FI[month]}
-          <span style={{ color: "#8b7e6a", fontWeight: 400, fontSize: 14, marginLeft: 8 }}>{monthEvents.length} tapahtumaa</span>
-        </h3>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={() => onAdd(month)} style={btnStyle("#5B5EA6")}>+ Lisää</button>
-          <button onClick={onClose} style={{ ...btnStyle("#e0d9cc"), color: "#6b5e4f" }}>✕</button>
-        </div>
-      </div>
-      {monthEvents.length === 0 ? (
-        <div style={{ color: "#8b7e6a", fontSize: 14, padding: "24px 0", textAlign: "center" }}>
-          Ei tapahtumia. Lisää uusi klikkaamalla "+ Lisää".
-        </div>
-      ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 10 }}>
-          {monthEvents.map(ev => {
-            const cat = catMap[ev.categoryId];
-            return (
-              <div key={ev.id} style={{
-                background: "#fff", borderRadius: 10, padding: "14px 16px",
-                borderLeft: `5px solid ${cat?.color || "#888"}`, boxShadow: "0 1px 4px rgba(0,0,0,0.06)"
-              }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 6 }}>
-                  <div>
-                    <span style={{ fontWeight: 700, fontSize: 14, color: "#3d3528" }}>{ev.title}</span>
-                    {cat && <span style={{
-                      marginLeft: 8, fontSize: 10, padding: "2px 8px", borderRadius: 99,
-                      background: cat.color + "22", color: cat.color, fontWeight: 600
-                    }}>{cat.name}</span>}
-                  </div>
-                  <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-                    <button onClick={() => onEdit(ev)} style={iconBtn}>✎</button>
-                    <button onClick={() => onDelete(ev.id)} style={{ ...iconBtn, color: "#D4546A" }}>✕</button>
-                  </div>
+              <div style={{flex:1,paddingBottom:10}}>
+                <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:hasEv?6:0,marginTop:-2}}>
+                  <span style={{fontSize:15,fontWeight:800,color:isCur?"#5B5EA6":th.text}}>{mg.name}</span>
+                  {isCur&&<span style={{fontSize:8,fontWeight:700,color:"#fff",background:"#5B5EA6",padding:"2px 7px",borderRadius:99}}>NYT</span>}
                 </div>
-                {ev.desc && <div style={{ fontSize: 13, color: "#6b5e4f", lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{ev.desc}</div>}
+                {mg.events.map(ev=>{const cat=cM[ev.categoryId];return(
+                  <div key={ev.id} onClick={()=>onEventClick(ev)} style={{background:th.card,borderRadius:8,padding:"10px 14px",marginBottom:5,cursor:"pointer",borderLeft:`4px solid ${ev.eventColor||cat?.color||th.border}`,boxShadow:"0 1px 3px rgba(0,0,0,0.04)",transition:"all 0.15s"}}
+                    onMouseEnter={e=>e.currentTarget.style.transform="translateY(-1px)"} onMouseLeave={e=>e.currentTarget.style.transform=""}>
+                    <div style={{display:"flex",justifyContent:"space-between",gap:6}}>
+                      <span style={{fontWeight:700,fontSize:13,color:th.text}}>{ev.title}</span>
+                      {cat&&<span style={{fontSize:8,padding:"2px 7px",borderRadius:99,background:cat.color+"22",color:cat.color,fontWeight:600,whiteSpace:"nowrap"}}>{cat.name}</span>}
+                    </div>
+                    {ev.desc&&<div style={{fontSize:11,color:th.muted,marginTop:3,lineHeight:1.5}}>{ev.desc}</div>}
+                  </div>)})}
+                {!hasEv&&<div style={{fontSize:11,color:th.border,marginTop:1}}>—</div>}
               </div>
-            );
-          })}
+            </div>)})}
         </div>
-      )}
+      ))}
     </div>
-  );
+  </div>);
 }
 
-/* ═══ Event Modal ═══ */
-function EventModal({ event, month, categories, onSave, onCancel }) {
-  const [title, setTitle] = useState(event?.title || "");
-  const [desc, setDesc] = useState(event?.desc || "");
-  const [catId, setCatId] = useState(event?.categoryId || categories[0]?.id || "");
-  const [selMonth, setSelMonth] = useState(event?.month ?? month ?? 0);
-  const handleSave = () => {
-    if (!title.trim()) return;
-    onSave({ id: event?.id || uid(), month: selMonth, title: title.trim(), desc: desc.trim(), categoryId: catId });
-  };
-  return (
-    <div style={overlay} onClick={onCancel}>
-      <div onClick={e => e.stopPropagation()} style={modalBox}>
-        <h3 style={{ margin: "0 0 20px", color: "#3d3528", fontSize: 18, fontWeight: 800 }}>
-          {event ? "Muokkaa tapahtumaa" : "Uusi tapahtuma"}
-        </h3>
-        <label style={labelStyle}>Kuukausi</label>
-        <select value={selMonth} onChange={e => setSelMonth(+e.target.value)} style={inputStyle}>
-          {MONTHS_FI.map((m, i) => <option key={i} value={i}>{m}</option>)}
-        </select>
-        <label style={labelStyle}>Otsikko *</label>
-        <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Tapahtuman nimi" style={inputStyle} autoFocus />
-        <label style={labelStyle}>Kuvaus</label>
-        <textarea value={desc} onChange={e => setDesc(e.target.value)} placeholder="Lisätietoja tapahtumasta..."
-          rows={5} style={{ ...inputStyle, resize: "vertical", minHeight: 100 }} />
-        <label style={labelStyle}>Kategoria</label>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 20 }}>
-          {categories.map(c => (
-            <button key={c.id} onClick={() => setCatId(c.id)} style={{
-              padding: "7px 16px", borderRadius: 99, border: "2px solid",
-              borderColor: catId === c.id ? c.color : "transparent",
-              background: c.color + (catId === c.id ? "33" : "15"),
-              color: c.color, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit"
-            }}>{c.name}</button>
-          ))}
-        </div>
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-          <button onClick={onCancel} style={{ ...btnStyle("#e0d9cc"), color: "#6b5e4f" }}>Peruuta</button>
-          <button onClick={handleSave} style={{ ...btnStyle("#5B5EA6"), opacity: title.trim() ? 1 : 0.4 }}>
-            {event ? "Tallenna" : "Lisää"}
+/* ═══ List View ═══ */
+function ListView({events,categories,onMonthClick,onEventClick,theme:th}){
+  const cM=useMemo(()=>Object.fromEntries(categories.map(c=>[c.id,c])),[categories]);
+  const cm=new Date().getMonth();
+  return(<div style={{overflowX:"auto",borderRadius:10}}>
+    <div style={{minWidth:1050}}>
+      <div style={{display:"flex",borderBottom:`2px solid ${th.border}`}}>
+        <div style={{width:90,flexShrink:0}}/>
+        {MF.map((n,i)=><div key={i} onClick={()=>onMonthClick(i)} style={{flex:1,textAlign:"center",padding:"7px 3px",cursor:"pointer",fontSize:10,fontWeight:700,color:i===cm?"#5B5EA6":th.muted,background:i===cm?"#5B5EA611":"transparent",borderLeft:`1px solid ${th.border}`}}>{MS[i]}</div>)}
+      </div>
+      {categories.filter(c=>c.visible).map((cat,ri)=>(
+        <div key={cat.id} style={{display:"flex",borderBottom:`1px solid ${th.border}`,minHeight:38}}>
+          <div style={{width:90,flexShrink:0,display:"flex",alignItems:"center",gap:5,padding:"3px 6px",fontSize:10,fontWeight:700,color:th.muted,background:ri%2===0?th.cardAlt:th.card}}>
+            <span style={{width:7,height:7,borderRadius:2,background:cat.color,flexShrink:0}}/>{cat.name}
+          </div>
+          {MF.map((_,mi)=>{const me=events.filter(e=>e.month===mi&&e.categoryId===cat.id);
+            return(<div key={mi} onClick={()=>onMonthClick(mi)} style={{flex:1,borderLeft:`1px solid ${th.border}`,padding:"2px 2px",background:mi===cm?"#5B5EA608":ri%2===0?th.card+"88":th.cardAlt+"88",display:"flex",flexDirection:"column",gap:2,cursor:"pointer"}}>
+              {me.map(ev=><div key={ev.id} onClick={e=>{e.stopPropagation();onEventClick(ev)}} style={{fontSize:9,padding:"2px 4px",borderRadius:3,background:ev.eventColor||cat.color,color:ev.eventColor?"#fff":"#fff",fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",cursor:"pointer",opacity:0.88}} onMouseEnter={e=>e.currentTarget.style.opacity="1"} onMouseLeave={e=>e.currentTarget.style.opacity="0.88"}>{ev.title}</div>)}
+            </div>);})}
+        </div>))}
+    </div>
+  </div>);
+}
+
+/* ═══ Sidebar ═══ */
+function Sidebar({clock,onUpdate,onMonthClick,selectedMonth,showSB,setShowSB,setShowCat,setShowSett,theme:th}){
+  const cm=new Date().getMonth();
+  if(!showSB)return null;
+  return(<div style={{width:240,flexShrink:0,background:th.card,borderRight:`1px solid ${th.border}`,padding:"12px 10px",overflowY:"auto",height:"calc(100vh - 50px)",fontSize:11,color:th.text}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+      <h3 style={{fontSize:13,fontWeight:800,margin:0}}>{clock.name}</h3>
+      <button onClick={()=>setShowSB(false)} style={{background:"none",border:"none",color:th.sub,cursor:"pointer",fontSize:14,padding:"2px 4px"}}>✕</button>
+    </div>
+    <div style={{marginBottom:14}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
+        <span style={{fontSize:10,fontWeight:700,color:th.muted,letterSpacing:"0.06em"}}>KEHÄT</span>
+        <button onClick={()=>setShowCat(true)} style={{background:"none",border:"none",color:"#5B5EA6",cursor:"pointer",fontSize:9,fontWeight:700,fontFamily:"inherit"}}>Muokkaa</button>
+      </div>
+      {clock.categories.map(cat=>(
+        <div key={cat.id} style={{display:"flex",alignItems:"center",gap:5,padding:"4px 0",borderBottom:`1px solid ${th.border}22`}}>
+          <div style={{width:12,height:12,borderRadius:3,background:cat.color,opacity:cat.visible?1:0.2,flexShrink:0}}/>
+          <span style={{flex:1,fontWeight:600,color:cat.visible?th.text:th.border,fontSize:11}}>{cat.name}</span>
+          <button onClick={()=>onUpdate({categories:clock.categories.map(c=>c.id===cat.id?{...c,visible:!c.visible}:c)})} style={{background:"none",border:"none",cursor:"pointer",color:cat.visible?"#5B5EA6":th.border,padding:0,display:"flex"}}>
+            {cat.visible?<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>:
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>}
           </button>
-        </div>
+        </div>))}
+      <div style={{marginTop:3,display:"flex",gap:8}}>
+        <button onClick={()=>onUpdate({categories:clock.categories.map(c=>({...c,visible:true}))})} style={{fontSize:9,color:"#5B5EA6",background:"transparent",border:"none",cursor:"pointer",fontWeight:700,fontFamily:"inherit"}}>Kaikki</button>
+        <button onClick={()=>onUpdate({categories:clock.categories.map(c=>({...c,visible:false}))})} style={{fontSize:9,color:th.sub,background:"transparent",border:"none",cursor:"pointer",fontWeight:700,fontFamily:"inherit"}}>Ei mitään</button>
       </div>
     </div>
-  );
-}
-
-/* ═══ Category Modal ═══ */
-function CategoryModal({ categories, onSave, onCancel }) {
-  const [cats, setCats] = useState(categories.map(c => ({ ...c })));
-  const presetColors = ["#5B5EA6","#E8873D","#3B9B74","#D4546A","#3A8FCD","#9B59B6","#E74C3C","#1ABC9C","#F39C12","#2C3E50"];
-  const addCat = () => setCats([...cats, { id: uid(), name: "", color: presetColors[cats.length % presetColors.length] }]);
-  const removeCat = (id) => setCats(cats.filter(c => c.id !== id));
-  const updateCat = (id, field, val) => setCats(cats.map(c => c.id === id ? { ...c, [field]: val } : c));
-  return (
-    <div style={overlay} onClick={onCancel}>
-      <div onClick={e => e.stopPropagation()} style={modalBox}>
-        <h3 style={{ margin: "0 0 20px", color: "#3d3528", fontSize: 18, fontWeight: 800 }}>Kategoriat</h3>
-        <p style={{ fontSize: 12, color: "#8b7e6a", marginBottom: 16 }}>Jokainen kategoria muodostaa oman kehänsä.</p>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
-          {cats.map((c, i) => (
-            <div key={c.id} style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <span style={{ fontSize: 11, color: "#8b7e6a", width: 20, textAlign: "center" }}>{i + 1}</span>
-              <input type="color" value={c.color} onChange={e => updateCat(c.id, "color", e.target.value)}
-                style={{ width: 36, height: 36, border: "none", borderRadius: 8, cursor: "pointer", background: "transparent" }} />
-              <input value={c.name} onChange={e => updateCat(c.id, "name", e.target.value)}
-                placeholder="Kategorian nimi" style={{ ...inputStyle, marginBottom: 0, flex: 1 }} />
-              <button onClick={() => removeCat(c.id)} style={{ ...iconBtn, color: "#D4546A" }}>✕</button>
-            </div>
-          ))}
-        </div>
-        <button onClick={addCat} style={{ ...btnStyle("#f5f0e8"), color: "#6b5e4f", width: "100%", marginBottom: 16, border: "2px dashed #d5cec0" }}>
-          + Lisää kategoria
-        </button>
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-          <button onClick={onCancel} style={{ ...btnStyle("#e0d9cc"), color: "#6b5e4f" }}>Peruuta</button>
-          <button onClick={() => onSave(cats.filter(c => c.name.trim()))} style={btnStyle("#5B5EA6")}>Tallenna</button>
-        </div>
+    <div style={{marginBottom:14}}>
+      <span style={{fontSize:10,fontWeight:700,color:th.muted,letterSpacing:"0.06em",display:"block",marginBottom:5}}>KUUKAUDET</span>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:2}}>
+        {MS.map((m,i)=>{const n=clock.events.filter(e=>e.month===i).length;
+          return<button key={i} onClick={()=>onMonthClick(i)} style={{padding:"4px",borderRadius:4,border:i===selectedMonth?"1.5px solid #5B5EA6":"1.5px solid transparent",background:i===selectedMonth?"#5B5EA611":i===cm?"#e0e7ff":th.cardAlt,color:i===cm?"#5B5EA6":th.muted,fontSize:9,fontWeight:700,fontFamily:"inherit",cursor:"pointer"}}>{m}{n>0&&<span style={{fontSize:7,color:th.sub,display:"block"}}>{n}</span>}</button>})}
       </div>
     </div>
-  );
+    <button onClick={()=>setShowSett(true)} style={{width:"100%",padding:"7px",borderRadius:6,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>⚙️ Asetukset</button>
+  </div>);
 }
 
-/* ═══ Name Modal ═══ */
-function NameModal({ currentName, title, onSave, onCancel }) {
-  const [name, setName] = useState(currentName || "");
-  return (
-    <div style={overlay} onClick={onCancel}>
-      <div onClick={e => e.stopPropagation()} style={{ ...modalBox, maxWidth: 400 }}>
-        <h3 style={{ margin: "0 0 16px", color: "#3d3528", fontSize: 18, fontWeight: 800 }}>{title}</h3>
-        <input value={name} onChange={e => setName(e.target.value)} placeholder="Nimi"
-          style={inputStyle} autoFocus onKeyDown={e => e.key === "Enter" && name.trim() && onSave(name.trim())} />
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-          <button onClick={onCancel} style={{ ...btnStyle("#e0d9cc"), color: "#6b5e4f" }}>Peruuta</button>
-          <button onClick={() => name.trim() && onSave(name.trim())} style={btnStyle("#5B5EA6")}>Tallenna</button>
-        </div>
-      </div>
+/* ═══ Modals ═══ */
+function MonthPanel({month,events,categories,onAdd,onEdit,onDelete,onClose,theme:th}){
+  const cM=useMemo(()=>Object.fromEntries(categories.map(c=>[c.id,c])),[categories]);const me=events.filter(e=>e.month===month);
+  return(<div style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:14,padding:"18px 16px",marginTop:14,animation:"slideIn 0.2s",color:th.text}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+      <h3 style={{margin:0,fontSize:16,fontWeight:800}}>{MF[month]} <span style={{color:th.sub,fontWeight:400,fontSize:13}}>{me.length}</span></h3>
+      <div style={{display:"flex",gap:5}}><button onClick={()=>onAdd(month)} style={{padding:"5px 12px",borderRadius:7,border:"none",background:"#5B5EA6",color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>+ Lisää</button><button onClick={onClose} style={{padding:"5px 10px",borderRadius:7,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✕</button></div>
     </div>
-  );
+    {me.length===0?<div style={{color:th.sub,fontSize:12,padding:"16px 0",textAlign:"center"}}>Ei tapahtumia.</div>:
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(250px,1fr))",gap:7}}>
+      {me.map(ev=>{const cat=cM[ev.categoryId];return(<div key={ev.id} style={{background:th.cardAlt,borderRadius:8,padding:"10px 12px",borderLeft:`4px solid ${ev.eventColor||cat?.color||th.border}`}}>
+        <div style={{display:"flex",justifyContent:"space-between",gap:5,marginBottom:2}}>
+          <span style={{fontWeight:700,fontSize:13}}>{ev.title}{cat&&<span style={{marginLeft:5,fontSize:8,padding:"1px 6px",borderRadius:99,background:cat.color+"33"}}>{cat.name}</span>}</span>
+          <div style={{display:"flex",gap:2}}><button onClick={()=>onEdit(ev)} style={{background:"none",border:"none",cursor:"pointer",color:th.muted,fontSize:12}}>✎</button><button onClick={()=>onDelete(ev.id)} style={{background:"none",border:"none",cursor:"pointer",color:"#ef4444",fontSize:12}}>✕</button></div>
+        </div>{ev.desc&&<div style={{fontSize:11,color:th.muted,lineHeight:1.5}}>{ev.desc}</div>}
+      </div>)})}
+    </div>}
+  </div>);
 }
 
-/* ═══ Print ═══ */
-function handlePrint(clockTitle, events, categories) {
-  const catMap = Object.fromEntries(categories.map(c => [c.id, c]));
-  let html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${clockTitle}</title>
-  <style>@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700;800&display=swap');
-  *{box-sizing:border-box;margin:0;padding:0}body{font-family:'DM Sans',sans-serif;color:#3d3528;padding:32px}
-  h1{font-size:24px;margin-bottom:4px}.sub{color:#8b7e6a;margin-bottom:20px;font-size:13px}
-  .legend{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:24px}
-  .legend-item{display:flex;align-items:center;gap:5px;font-size:12px;font-weight:600}
-  .dot{width:10px;height:10px;border-radius:3px;flex-shrink:0}
-  .month{page-break-inside:avoid;margin-bottom:18px}
-  .month-title{font-size:15px;font-weight:800;border-bottom:2px solid #e0d9cc;padding-bottom:4px;margin-bottom:8px}
-  .ev{display:flex;gap:10px;padding:6px 0;border-bottom:1px solid #f0ebe1}
-  .ev-title{font-weight:700;font-size:13px}.ev-desc{font-size:12px;color:#6b5e4f;margin-top:2px}
-  .ev-cat{font-size:10px;color:#8b7e6a}@media print{body{padding:16px}}</style></head><body>
-  <h1>${clockTitle}</h1><div class="sub">${new Date().getFullYear()} &mdash; ${events.length} tapahtumaa</div>
-  <div class="legend">${categories.map(c => `<div class="legend-item"><div class="dot" style="background:${c.color}"></div>${c.name}</div>`).join("")}</div>`;
-  MONTHS_FI.forEach((name, i) => {
-    const me = events.filter(e => e.month === i);
-    if (!me.length) return;
-    html += `<div class="month"><div class="month-title">${name}</div>`;
-    me.forEach(ev => {
-      const cat = catMap[ev.categoryId];
-      html += `<div class="ev"><div class="dot" style="background:${cat?.color||'#888'}"></div><div><div class="ev-title">${ev.title}</div>${ev.desc?`<div class="ev-desc">${ev.desc}</div>`:""}<div class="ev-cat">${cat?.name||""}</div></div></div>`;
-    });
-    html += `</div>`;
+function EventModal({event,month,categories,onSave,onCancel,theme:th}){
+  const[t,setT]=useState(event?.title||"");const[d,setD]=useState(event?.desc||"");const[ci,setCi]=useState(event?.categoryId||categories[0]?.id||"");
+  const[sm,setSm]=useState(event?.month??month??0);const[ec,setEc]=useState(event?.eventColor||null);
+  const go=()=>{if(!t.trim())return;onSave({id:event?.id||uid(),month:sm,title:t.trim(),desc:d.trim(),categoryId:ci,eventColor:ec})};
+  return(<div style={makeOvr(th)} onClick={onCancel}><div onClick={e=>e.stopPropagation()} style={makeMod(th)}>
+    <h3 style={{margin:"0 0 14px",fontSize:16,fontWeight:800}}>{event?"Muokkaa":"Uusi tapahtuma"}</h3>
+    <label style={{...lbl,color:th.muted}}>Kuukausi</label><select value={sm} onChange={e=>setSm(+e.target.value)} style={{...inp,background:th.cardAlt,color:th.text,borderColor:th.border}}>{MF.map((m,i)=><option key={i} value={i}>{m}</option>)}</select>
+    <label style={{...lbl,color:th.muted}}>Otsikko *</label><input value={t} onChange={e=>setT(e.target.value)} placeholder="Nimi" style={{...inp,background:th.cardAlt,color:th.text,borderColor:th.border}} autoFocus/>
+    <label style={{...lbl,color:th.muted}}>Kuvaus</label><textarea value={d} onChange={e=>setD(e.target.value)} placeholder="Lisätietoja..." rows={3} style={{...inp,resize:"vertical",minHeight:60,background:th.cardAlt,color:th.text,borderColor:th.border}}/>
+    <label style={{...lbl,color:th.muted}}>Kehä</label>
+    <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:10}}>{categories.map(c=><button key={c.id} onClick={()=>setCi(c.id)} style={{padding:"4px 11px",borderRadius:99,border:"2px solid",borderColor:ci===c.id?th.text:"transparent",background:c.color+(ci===c.id?"66":"33"),fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",color:th.text}}>{c.name}</button>)}</div>
+    <label style={{...lbl,color:th.muted}}>Värikoodi</label>
+    <div style={{display:"flex",flexWrap:"wrap",gap:3,marginBottom:14}}>
+      <button onClick={()=>setEc(null)} style={{padding:"3px 9px",borderRadius:99,border:`2px solid ${!ec?th.text:th.border}`,background:th.card,fontSize:9,fontWeight:600,cursor:"pointer",fontFamily:"inherit",color:th.muted}}>Oletus</button>
+      {EC.filter(c=>c.color).map(c=><button key={c.id} onClick={()=>setEc(c.color)} style={{padding:"3px 9px",borderRadius:99,border:`2px solid ${ec===c.color?c.color:"transparent"}`,background:c.color+(ec===c.color?"33":"15"),color:c.color,fontSize:9,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{c.name}</button>)}
+    </div>
+    <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}><button onClick={onCancel} style={{padding:"6px 12px",borderRadius:7,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Peruuta</button><button onClick={go} style={{padding:"6px 14px",borderRadius:7,border:"none",background:"#5B5EA6",color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",opacity:t.trim()?1:0.4}}>{event?"Tallenna":"Lisää"}</button></div>
+  </div></div>);
+}
+
+function CatModal({categories,onSave,onCancel,theme:th}){
+  const[c,setC]=useState(categories.map(x=>({...x})));
+  const ps=["#A8C5DA","#F5D5A0","#B5D8C7","#E8B4B8","#B8B5D8","#C5E0B4","#F0C5A0","#A0C5E0","#D4A0D4","#F5A0A0"];
+  return(<div style={makeOvr(th)} onClick={onCancel}><div onClick={e=>e.stopPropagation()} style={makeMod(th)}>
+    <h3 style={{margin:"0 0 12px",fontSize:16,fontWeight:800}}>Kehät</h3>
+    <div style={{display:"flex",flexDirection:"column",gap:7,marginBottom:10}}>
+      {c.map(x=><div key={x.id} style={{display:"flex",gap:5,alignItems:"center"}}>
+        <input type="color" value={x.color} onChange={e=>setC(c.map(z=>z.id===x.id?{...z,color:e.target.value}:z))} style={{width:28,height:28,border:"none",borderRadius:6,cursor:"pointer"}}/>
+        <input value={x.name} onChange={e=>setC(c.map(z=>z.id===x.id?{...z,name:e.target.value}:z))} placeholder="Nimi" style={{...inp,marginBottom:0,flex:1,background:th.cardAlt,color:th.text,borderColor:th.border}}/>
+        <button onClick={()=>setC(c.filter(z=>z.id!==x.id))} style={{background:"none",border:"none",cursor:"pointer",color:"#ef4444",fontSize:13}}>✕</button>
+      </div>)}
+    </div>
+    <button onClick={()=>setC([...c,{id:uid(),name:"",color:ps[c.length%ps.length],visible:true}])} style={{width:"100%",padding:"7px",borderRadius:6,border:`1.5px dashed ${th.border}`,background:"transparent",color:th.muted,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",marginBottom:10}}>+ Lisää</button>
+    <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}><button onClick={onCancel} style={{padding:"6px 12px",borderRadius:7,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Peruuta</button><button onClick={()=>onSave(c.filter(x=>x.name.trim()))} style={{padding:"6px 14px",borderRadius:7,border:"none",background:"#5B5EA6",color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Tallenna</button></div>
+  </div></div>);
+}
+
+function SettModal({settings,onSave,onCancel,theme:th}){
+  const[s,setS]=useState({...settings});
+  return(<div style={makeOvr(th)} onClick={onCancel}><div onClick={e=>e.stopPropagation()} style={{...makeMod(th),maxWidth:420}}>
+    <h3 style={{margin:"0 0 16px",fontSize:16,fontWeight:800}}>Asetukset</h3>
+    <label style={{...lbl,color:th.muted}}>Kellon tyyppi</label>
+    <div style={{display:"flex",marginBottom:12,borderRadius:8,overflow:"hidden",border:`1.5px solid ${th.border}`}}>
+      {[{v:true,l:"Pyörivä"},{v:false,l:"Staattinen"}].map(o=><button key={String(o.v)} onClick={()=>setS({...s,revolving:o.v})} style={{flex:1,padding:"9px",border:"none",fontSize:12,fontWeight:700,fontFamily:"inherit",cursor:"pointer",background:s.revolving===o.v?"#5B5EA6":th.cardAlt,color:s.revolving===o.v?"#fff":th.muted}}>{o.l}</button>)}
+    </div>
+    <label style={{...lbl,color:th.muted}}>Suunta</label>
+    <div style={{display:"flex",marginBottom:12,borderRadius:8,overflow:"hidden",border:`1.5px solid ${th.border}`}}>
+      {[{v:true,l:"Myötäpäivään ↻"},{v:false,l:"Vastapäivään ↺"}].map(o=><button key={String(o.v)} onClick={()=>setS({...s,clockwise:o.v})} style={{flex:1,padding:"9px",border:"none",fontSize:12,fontWeight:700,fontFamily:"inherit",cursor:"pointer",background:s.clockwise===o.v?"#5B5EA6":th.cardAlt,color:s.clockwise===o.v?"#fff":th.muted}}>{o.l}</button>)}
+    </div>
+    <label style={{...lbl,color:th.muted}}>Aloituskuukausi</label>
+    <select value={s.startMonth} onChange={e=>setS({...s,startMonth:+e.target.value})} style={{...inp,background:th.cardAlt,color:th.text,borderColor:th.border}}>{MF.map((m,i)=><option key={i} value={i}>{m}</option>)}</select>
+    <label style={{...lbl,color:th.muted}}>Teema</label>
+    <div style={{display:"flex",gap:5,marginBottom:16}}>
+      {BG_COLORS.map(t=><button key={t.id} onClick={()=>setS({...s,theme:t.id})} style={{flex:1,padding:"8px 4px",borderRadius:8,border:s.theme===t.id?"2px solid #5B5EA6":`2px solid ${th.border}`,background:t.bg,color:t.text,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{t.name}</button>)}
+    </div>
+    <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}><button onClick={onCancel} style={{padding:"6px 12px",borderRadius:7,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Peruuta</button><button onClick={()=>onSave(s)} style={{padding:"6px 14px",borderRadius:7,border:"none",background:"#5B5EA6",color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Tallenna</button></div>
+  </div></div>);
+}
+
+function ShareModal({clock,onClose,theme:th}){
+  const[cp,setCp]=useState(false);
+  const enc=encS(clock);const url=enc?window.location.origin+window.location.pathname+"?d="+enc:null;const big=!url||url.length>8000;
+  const copy=()=>{if(url)navigator.clipboard.writeText(url).then(()=>{setCp(true);setTimeout(()=>setCp(false),2000)})};
+  const exp=()=>{const b=new Blob([JSON.stringify([clock],null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=(clock.name||"vuosikello")+".json";a.click()};
+  return(<div style={makeOvr(th)} onClick={onClose}><div onClick={e=>e.stopPropagation()} style={{...makeMod(th),maxWidth:420}}>
+    <h3 style={{margin:"0 0 14px",fontSize:16,fontWeight:800}}>Jaa</h3>
+    {!big&&<><label style={{...lbl,color:th.muted}}>Jakolinkki</label><div style={{display:"flex",gap:5,marginBottom:10}}><input value={url} readOnly style={{...inp,marginBottom:0,flex:1,fontSize:9,color:th.sub,background:th.cardAlt,borderColor:th.border}} onClick={e=>e.target.select()}/><button onClick={copy} style={{padding:"6px 12px",borderRadius:7,border:"none",background:cp?"#22C55E":"#5B5EA6",color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{cp?"✓":"Kopioi"}</button></div></>}
+    <button onClick={exp} style={{width:"100%",padding:"8px",borderRadius:7,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",marginBottom:8}}>💾 Lataa JSON</button>
+    <div style={{display:"flex",justifyContent:"flex-end"}}><button onClick={onClose} style={{padding:"6px 12px",borderRadius:7,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Sulje</button></div>
+  </div></div>);
+}
+
+function handlePrint(t,ev,cats){
+  const cm=Object.fromEntries(cats.map(c=>[c.id,c]));
+  let h=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${t}</title><style>@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700;800&display=swap');*{box-sizing:border-box;margin:0;padding:0}body{font-family:'DM Sans',sans-serif;padding:32px}h1{font-size:22px;margin-bottom:20px}.mo{page-break-inside:avoid;margin-bottom:14px}.mt{font-size:14px;font-weight:800;border-bottom:2px solid #e2e8f0;padding-bottom:3px;margin-bottom:6px}.ev{display:flex;gap:8px;padding:4px 0;border-bottom:1px solid #f1f5f9}.d{width:8px;height:8px;border-radius:2px;margin-top:3px}.et{font-weight:700;font-size:12px}.ed{font-size:11px;color:#64748b}</style></head><body><h1>${t} — ${new Date().getFullYear()}</h1>`;
+  MF.forEach((n,i)=>{const me=ev.filter(e=>e.month===i);if(!me.length)return;h+=`<div class="mo"><div class="mt">${n}</div>`;me.forEach(e=>{const c=cm[e.categoryId];h+=`<div class="ev"><div class="d" style="background:${e.eventColor||c?.color||'#ccc'}"></div><div><div class="et">${e.title}</div>${e.desc?`<div class="ed">${e.desc}</div>`:""}</div></div>`});h+=`</div>`});
+  h+=`</body></html>`;const w=window.open("","_blank");w.document.write(h);w.document.close();setTimeout(()=>w.print(),300);
+}
+
+/* ═══ App ═══ */
+function App(){
+  const[init]=useState(()=>{
+    const p=new URLSearchParams(window.location.search),enc=p.get("d");
+    if(enc){const s=decS(enc);if(s)return{clocks:[{id:uid(),name:s.name,events:s.events||[],categories:(s.categories||[]).map(c=>({...c,visible:c.visible!==false})),settings:s.settings||DS}],fromShare:true}}
+    const st=ld();if(st)return{clocks:st.map(c=>({...c,categories:(c.categories||[]).map(ct=>({...ct,visible:ct.visible!==false})),settings:c.settings||DS})),fromShare:false};return null;
   });
-  html += `</body></html>`;
-  const w = window.open("", "_blank"); w.document.write(html); w.document.close();
-  setTimeout(() => w.print(), 300);
-}
 
-/* ═══ Main App ═══ */
-function VuosikelloApp() {
-  // Check URL for shared data first
-  const [initData] = useState(() => {
-    const params = new URLSearchParams(window.location.search);
-    const encoded = params.get("d");
-    if (encoded) {
-      const shared = decodeShareData(encoded);
-      if (shared) {
-        const clock = { id: uid(), name: shared.name, events: shared.events || [], categories: shared.categories || DEFAULT_CATEGORIES };
-        return { clocks: [clock], fromShare: true };
-      }
-    }
-    const stored = loadFromStorage();
-    if (stored) return { clocks: stored, fromShare: false };
-    return null;
-  });
+  const[showOB,setShowOB]=useState(!init);
+  const[clocks,setClocks]=useState(init?init.clocks:[]);
+  const[acId,setAcId]=useState(init?.clocks?.[0]?.id||"");
+  const[view,setView]=useState("clock");
+  const[selM,setSelM]=useState(null);
+  const[editEv,setEditEv]=useState(null);
+  const[showCat,setShowCat]=useState(false);
+  const[showSett,setShowSett]=useState(false);
+  const[showShare,setShowShare]=useState(false);
+  const[showSB,setShowSB]=useState(true);
+  const[editName,setEditName]=useState(false);
+  const[nameVal,setNameVal]=useState("");
+  const[toast,setToast]=useState(null);
 
-  const [showOnboarding, setShowOnboarding] = useState(!initData);
-  const [clocks, setClocks] = useState(initData ? initData.clocks : []);
-  const [activeClockId, setActiveClockId] = useState(initData?.clocks?.[0]?.id || "");
-  const [viewMode, setViewMode] = useState("circular");
-  const [selectedMonth, setSelectedMonth] = useState(null);
-  const [editEvent, setEditEvent] = useState(null);
-  const [showCatModal, setShowCatModal] = useState(false);
-  const [showNameModal, setShowNameModal] = useState(false);
-  const [showNewClock, setShowNewClock] = useState(false);
-  const [showShareModal, setShowShareModal] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(null);
-  const [filterCat, setFilterCat] = useState(null);
-  const [toast, setToast] = useState(null);
+  useEffect(()=>{if(init?.fromShare){setToast("Jaettu vuosikello avattu!");setTimeout(()=>setToast(null),3000);window.history.replaceState({},"",window.location.pathname)}},[]);
+  useEffect(()=>{if(clocks.length>0)sv(clocks)},[clocks]);
 
-  // Show toast for shared clocks
-  useEffect(() => {
-    if (initData?.fromShare) {
-      setToast("Jaettu vuosikello avattu! Muutokset tallentuvat selaimeesi.");
-      setTimeout(() => setToast(null), 4000);
-      // Clean URL
-      window.history.replaceState({}, "", window.location.pathname);
-    }
-  }, []);
+  const clock=clocks.find(c=>c.id===acId)||clocks[0];
+  const th=useTheme(clock?.settings?.theme||"light");
+  const visCIds=clock?clock.categories.filter(c=>c.visible).map(c=>c.id):[];
+  const fEv=clock?clock.events.filter(e=>visCIds.includes(e.categoryId)):[];
 
-  // Auto-save to localStorage
-  useEffect(() => {
-    if (clocks.length > 0) saveToStorage(clocks);
-  }, [clocks]);
+  const upd=useCallback(u=>setClocks(p=>p.map(c=>c.id===acId?{...c,...u}:c)),[acId]);
+  const onOB=nc=>{setClocks(nc);setAcId(nc[0].id);setShowOB(false)};
+  const addClock=()=>{const id=uid();setClocks(p=>[...p,{id,name:"Uusi kello",events:[],categories:[{id:uid(),name:"Yleinen",color:"#A8C5DA",visible:true}],settings:{...DS,theme:clock?.settings?.theme||"light"}}]);setAcId(id)};
+  const saveEv=ev=>{const ex=clock.events.find(e=>e.id===ev.id);if(ex)upd({events:clock.events.map(e=>e.id===ev.id?ev:e)});else upd({events:[...clock.events,ev]});setEditEv(null)};
+  const delEv=id=>upd({events:clock.events.filter(e=>e.id!==id)});
+  const importData=()=>{const inp2=document.createElement("input");inp2.type="file";inp2.accept=".json";inp2.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(Array.isArray(d)&&d[0]?.events){setClocks(d.map(c=>({...c,categories:(c.categories||[]).map(ct=>({...ct,visible:ct.visible!==false})),settings:c.settings||DS})));setAcId(d[0].id)}}catch{}};r.readAsText(f)};inp2.click()};
+  const startEditName=()=>{setNameVal(clock.name);setEditName(true)};
+  const saveName=()=>{if(nameVal.trim()){upd({name:nameVal.trim()});setEditName(false)}};
 
-  const clock = clocks.find(c => c.id === activeClockId) || clocks[0];
-  const filteredEvents = clock ? (filterCat ? clock.events.filter(e => e.categoryId === filterCat) : clock.events) : [];
+  if(showOB)return<Onboarding onComplete={onOB}/>;
+  if(!clock)return null;
 
-  const updateClock = useCallback((updates) => {
-    setClocks(prev => prev.map(c => c.id === activeClockId ? { ...c, ...updates } : c));
-  }, [activeClockId]);
-
-  const handleOnboardingComplete = (newClocks) => {
-    setClocks(newClocks);
-    setActiveClockId(newClocks[0].id);
-    setShowOnboarding(false);
-  };
-
-  const addClock = (name) => {
-    const newId = uid();
-    setClocks(prev => [...prev, { id: newId, name, events: [], categories: [...DEFAULT_CATEGORIES] }]);
-    setActiveClockId(newId); setShowNewClock(false);
-  };
-  const deleteClock = (id) => {
-    if (clocks.length <= 1) return;
-    setClocks(prev => prev.filter(c => c.id !== id));
-    if (activeClockId === id) setActiveClockId(clocks.find(c => c.id !== id).id);
-    setConfirmDelete(null);
-  };
-  const saveEvent = (ev) => {
-    const exists = clock.events.find(e => e.id === ev.id);
-    if (exists) updateClock({ events: clock.events.map(e => e.id === ev.id ? ev : e) });
-    else updateClock({ events: [...clock.events, ev] });
-    setEditEvent(null);
-  };
-  const deleteEvent = (id) => updateClock({ events: clock.events.filter(e => e.id !== id) });
-
-  const importData = () => {
-    const input = document.createElement("input"); input.type = "file"; input.accept = ".json";
-    input.onchange = (e) => {
-      const f = e.target.files[0]; if (!f) return;
-      const r = new FileReader();
-      r.onload = (ev) => {
-        try {
-          const d = JSON.parse(ev.target.result);
-          if (Array.isArray(d) && d[0]?.events) { setClocks(d); setActiveClockId(d[0].id); }
-        } catch {}
-      };
-      r.readAsText(f);
-    };
-    input.click();
-  };
-
-  const resetAll = () => {
-    if (confirm("Haluatko varmasti nollata kaiken? Kaikki vuosikellot poistetaan.")) {
-      localStorage.removeItem(STORAGE_KEY);
-      setClocks([]);
-      setShowOnboarding(true);
-    }
-  };
-
-  if (showOnboarding) {
-    return <OnboardingWizard onComplete={handleOnboardingComplete} />;
-  }
-
-  if (!clock) return null;
-
-  return (
-    <div style={{ minHeight: "100vh", background: "#f5f0e8", fontFamily: "'DM Sans', sans-serif", color: "#3d3528" }}>
-      <header style={{
-        padding: "14px 24px", borderBottom: "1px solid #e0d9cc",
-        display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12,
-        background: "#fdfcf9"
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{
-            width: 38, height: 38, borderRadius: 10,
-            background: "linear-gradient(135deg, #5B5EA6, #3A8FCD)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            color: "#fff", fontSize: 18, fontWeight: 800
-          }}>◎</div>
-          <div>
-            <h1 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>Vuosikello</h1>
-            <div style={{ fontSize: 11, color: "#8b7e6a" }}>Tallennetaan automaattisesti</div>
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button onClick={() => setShowShareModal(true)} style={btnStyle("#5B5EA6")}>🔗 Jaa</button>
-          <button onClick={importData} style={{ ...btnStyle("#e0d9cc"), color: "#6b5e4f" }}>📂 Tuo</button>
-          <button onClick={() => handlePrint(clock.name, filteredEvents, clock.categories)}
-            style={{ ...btnStyle("#e0d9cc"), color: "#6b5e4f" }}>🖨 Tulosta</button>
-          <button onClick={resetAll} style={{ ...btnStyle("#e0d9cc"), color: "#D4546A", fontSize: 11, padding: "6px 10px" }}>Nollaa</button>
-        </div>
-      </header>
-
-      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "20px 16px" }}>
-        <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
-          {clocks.map(c => (
-            <div key={c.id} style={{ display: "flex" }}>
-              <button onClick={() => { setActiveClockId(c.id); setSelectedMonth(null); setFilterCat(null); }}
-                style={{
-                  ...btnStyle(c.id === activeClockId ? "#5B5EA6" : "#fff"),
-                  color: c.id === activeClockId ? "#fff" : "#6b5e4f",
-                  borderRadius: clocks.length > 1 ? "8px 0 0 8px" : "8px",
-                  border: c.id === activeClockId ? "none" : "1px solid #e0d9cc"
-                }}>
-                {c.name} <span style={{ marginLeft: 4, opacity: 0.6, fontSize: 11 }}>({c.events.length})</span>
-              </button>
-              {clocks.length > 1 && (
-                <button onClick={() => setConfirmDelete(c.id)} style={{
-                  ...btnStyle(c.id === activeClockId ? "#4a4d8a" : "#fff"),
-                  color: c.id === activeClockId ? "#fff" : "#8b7e6a",
-                  borderRadius: "0 8px 8px 0", padding: "8px 8px", fontSize: 10,
-                  border: c.id === activeClockId ? "none" : "1px solid #e0d9cc",
-                  borderLeft: "1px solid " + (c.id === activeClockId ? "#6b6eb8" : "#e0d9cc")
-                }}>✕</button>
-              )}
-            </div>
-          ))}
-          <button onClick={() => setShowNewClock(true)}
-            style={{ ...btnStyle("#fff"), color: "#8b7e6a", border: "2px dashed #d5cec0" }}>+ Uusi</button>
-        </div>
-
-        <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-            <div style={{ display: "flex", background: "#fff", borderRadius: 8, overflow: "hidden", border: "1px solid #e0d9cc" }}>
-              {[["circular", "◎ Kello"], ["timeline", "═ Taulukko"], ["visual", "⏐ Aikajana"]].map(([v, label]) => (
-                <button key={v} onClick={() => setViewMode(v)} style={{
-                  padding: "6px 14px", border: "none", fontSize: 12, fontWeight: 700,
-                  background: viewMode === v ? "#5B5EA6" : "#fff",
-                  color: viewMode === v ? "#fff" : "#8b7e6a",
-                  cursor: "pointer", fontFamily: "inherit"
-                }}>{label}</button>
-              ))}
-            </div>
-            <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-              <button onClick={() => setFilterCat(null)} style={{
-                padding: "5px 12px", borderRadius: 99, border: "2px solid",
-                borderColor: !filterCat ? "#5B5EA6" : "#e0d9cc",
-                background: !filterCat ? "#5B5EA622" : "#fff",
-                color: !filterCat ? "#5B5EA6" : "#8b7e6a",
-                fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit"
-              }}>Kaikki</button>
-              {clock.categories.map(c => (
-                <button key={c.id} onClick={() => setFilterCat(filterCat === c.id ? null : c.id)} style={{
-                  padding: "5px 12px", borderRadius: 99, border: "2px solid",
-                  borderColor: filterCat === c.id ? c.color : "transparent",
-                  background: c.color + (filterCat === c.id ? "33" : "15"),
-                  color: c.color, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit"
-                }}>{c.name}</button>
-              ))}
-            </div>
-          </div>
-          <div style={{ display: "flex", gap: 6 }}>
-            <button onClick={() => setShowNameModal(true)} style={{ ...btnStyle("#fff"), color: "#6b5e4f", border: "1px solid #e0d9cc" }}>✏️ Nimeä</button>
-            <button onClick={() => setShowCatModal(true)} style={{ ...btnStyle("#fff"), color: "#6b5e4f", border: "1px solid #e0d9cc" }}>🏷 Kategoriat</button>
-            <button onClick={() => setEditEvent({ month: selectedMonth ?? new Date().getMonth() })} style={btnStyle("#5B5EA6")}>+ Tapahtuma</button>
-          </div>
-        </div>
-
-        <div style={{ display: "flex", justifyContent: "center" }}>
-          {viewMode === "circular" ? (
-            <CircularClock events={filteredEvents} categories={clock.categories}
-              onMonthClick={(m) => setSelectedMonth(selectedMonth === m ? null : m)}
-              onEventClick={(ev) => setEditEvent(ev)}
-              clockTitle={clock.name} selectedMonth={selectedMonth} />
-          ) : viewMode === "visual" ? (
-            <VisualTimeline events={filteredEvents} categories={clock.categories}
-              onEventClick={(ev) => setEditEvent(ev)}
-              clockTitle={clock.name} />
-          ) : (
-            <div style={{ width: "100%" }}>
-              <TimelineView events={filteredEvents} categories={clock.categories}
-                onMonthClick={(m) => setSelectedMonth(selectedMonth === m ? null : m)}
-                onEventClick={(ev) => setEditEvent(ev)} />
-            </div>
-          )}
-        </div>
-
-        {selectedMonth !== null && (
-          <MonthPanel month={selectedMonth} events={filteredEvents} categories={clock.categories}
-            onAdd={(m) => setEditEvent({ month: m })} onEdit={(ev) => setEditEvent(ev)}
-            onDelete={deleteEvent} onClose={() => setSelectedMonth(null)} />
-        )}
+  return(<div style={{minHeight:"100vh",background:th.bg,fontFamily:"'DM Sans',sans-serif",color:th.text,transition:"background 0.3s, color 0.3s"}}>
+    <header style={{height:50,padding:"0 14px",borderBottom:`1px solid ${th.border}`,display:"flex",alignItems:"center",justifyContent:"space-between",background:th.card,gap:8}}>
+      <div style={{display:"flex",alignItems:"center",gap:7}}>
+        <button onClick={()=>setShowSB(!showSB)} style={{background:"none",border:"none",color:th.muted,cursor:"pointer",fontSize:15,padding:"3px 6px"}}>☰</button>
+        <div style={{width:26,height:26,borderRadius:6,background:"linear-gradient(135deg,#5B5EA6,#3A8FCD)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:11,fontWeight:800}}>◎</div>
+        {/* Inline name edit */}
+        {editName?<div style={{display:"flex",gap:4,alignItems:"center"}}>
+          <input value={nameVal} onChange={e=>setNameVal(e.target.value)} style={{...inp,marginBottom:0,width:180,fontSize:13,padding:"4px 8px",background:th.cardAlt,color:th.text,borderColor:th.border}} autoFocus onKeyDown={e=>{if(e.key==="Enter")saveName();if(e.key==="Escape")setEditName(false)}}/>
+          <button onClick={saveName} style={{background:"none",border:"none",cursor:"pointer",color:"#22C55E",fontSize:14}}>✓</button>
+          <button onClick={()=>setEditName(false)} style={{background:"none",border:"none",cursor:"pointer",color:th.sub,fontSize:14}}>✕</button>
+        </div>:<button onClick={startEditName} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:800,fontSize:14,color:th.text,padding:0}} title="Klikkaa muokataksesi nimeä">{clock.name} <span style={{fontSize:10,color:th.sub}}>✎</span></button>}
       </div>
-
-      {editEvent && <EventModal event={editEvent.id ? editEvent : null} month={editEvent.month}
-        categories={clock.categories} onSave={saveEvent} onCancel={() => setEditEvent(null)} />}
-      {showCatModal && <CategoryModal categories={clock.categories}
-        onSave={(cats) => { updateClock({ categories: cats }); setShowCatModal(false); }}
-        onCancel={() => setShowCatModal(false)} />}
-      {showNameModal && <NameModal currentName={clock.name} title="Nimeä vuosikello"
-        onSave={(n) => { updateClock({ name: n }); setShowNameModal(false); }}
-        onCancel={() => setShowNameModal(false)} />}
-      {showNewClock && <NameModal currentName="" title="Uusi vuosikello"
-        onSave={addClock} onCancel={() => setShowNewClock(false)} />}
-      {showShareModal && <ShareModal clock={clock} onClose={() => setShowShareModal(false)} />}
-      {confirmDelete && (
-        <div style={overlay} onClick={() => setConfirmDelete(null)}>
-          <div onClick={e => e.stopPropagation()} style={{ ...modalBox, maxWidth: 380 }}>
-            <h3 style={{ margin: "0 0 12px", color: "#3d3528", fontSize: 16, fontWeight: 800 }}>Poista vuosikello?</h3>
-            <p style={{ color: "#6b5e4f", fontSize: 14, marginBottom: 20 }}>
-              Haluatko varmasti poistaa kellon "{clocks.find(c => c.id === confirmDelete)?.name}"?
-            </p>
-            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-              <button onClick={() => setConfirmDelete(null)} style={{ ...btnStyle("#e0d9cc"), color: "#6b5e4f" }}>Peruuta</button>
-              <button onClick={() => deleteClock(confirmDelete)} style={btnStyle("#D4546A")}>Poista</button>
-            </div>
-          </div>
+      <div style={{display:"flex",gap:4,alignItems:"center",flexWrap:"wrap"}}>
+        {/* View mode toggle */}
+        <div style={{display:"flex",borderRadius:6,overflow:"hidden",border:`1px solid ${th.border}`,marginRight:4}}>
+          {[["clock","◎"],["timeline","⏐"],["list","≡"]].map(([v,ic])=><button key={v} onClick={()=>setView(v)} title={v==="clock"?"Kello":v==="timeline"?"Aikajana":"Lista"} style={{padding:"4px 10px",border:"none",fontSize:12,fontWeight:700,fontFamily:"inherit",cursor:"pointer",background:view===v?"#5B5EA6":th.card,color:view===v?"#fff":th.muted}}>{ic}</button>)}
         </div>
-      )}
-      {toast && <div className="toast">{toast}</div>}
+        {clocks.length>1&&clocks.map(c=><button key={c.id} onClick={()=>{setAcId(c.id);setSelM(null)}} style={{fontSize:9,padding:"3px 8px",borderRadius:5,border:c.id===acId?"none":`1px solid ${th.border}`,background:c.id===acId?"#5B5EA6":th.card,color:c.id===acId?"#fff":th.muted,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{c.name}</button>)}
+        <button onClick={addClock} style={{fontSize:10,padding:"3px 8px",borderRadius:5,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>+</button>
+        <div style={{width:1,height:16,background:th.border,margin:"0 2px"}}/>
+        <button onClick={()=>setShowShare(true)} style={{fontSize:10,padding:"3px 10px",borderRadius:5,border:"none",background:"#5B5EA6",color:"#fff",fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>🔗</button>
+        <button onClick={importData} style={{fontSize:10,padding:"3px 8px",borderRadius:5,border:`1px solid ${th.border}`,background:th.card,color:th.muted,cursor:"pointer",fontFamily:"inherit"}}>📂</button>
+        <button onClick={()=>handlePrint(clock.name,fEv,clock.categories)} style={{fontSize:10,padding:"3px 8px",borderRadius:5,border:`1px solid ${th.border}`,background:th.card,color:th.muted,cursor:"pointer",fontFamily:"inherit"}}>🖨</button>
+        <button onClick={()=>{if(confirm("Nollaa?")){localStorage.removeItem(SK);setClocks([]);setShowOB(true)}}} style={{fontSize:8,padding:"3px 6px",borderRadius:5,border:`1px solid ${th.border}`,background:th.card,color:"#ef4444",cursor:"pointer",fontFamily:"inherit",fontWeight:700}}>Nollaa</button>
+      </div>
+    </header>
+
+    <div style={{display:"flex",height:"calc(100vh - 50px)"}}>
+      <Sidebar clock={clock} onUpdate={upd} onMonthClick={m=>setSelM(selM===m?null:m)} selectedMonth={selM}
+        showSB={showSB} setShowSB={setShowSB} setShowCat={setShowCat} setShowSett={setShowSett} theme={th}/>
+
+      <div style={{flex:1,overflowY:"auto",padding:"14px 18px"}}>
+        <div style={{display:"flex",justifyContent:"flex-end",marginBottom:10,gap:5}}>
+          <button onClick={()=>setShowCat(true)} style={{fontSize:10,padding:"4px 10px",borderRadius:6,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>🏷 Kehät</button>
+          <button onClick={()=>setShowSett(true)} style={{fontSize:10,padding:"4px 10px",borderRadius:6,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>⚙️</button>
+          <button onClick={()=>setEditEv({month:selM??new Date().getMonth()})} style={{fontSize:10,padding:"4px 14px",borderRadius:6,border:"none",background:"#5B5EA6",color:"#fff",fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>+ Tapahtuma</button>
+        </div>
+
+        {view==="clock"&&<CircularClock events={fEv} categories={clock.categories.filter(c=>c.visible)} onMonthClick={m=>setSelM(selM===m?null:m)} onEventClick={ev=>setEditEv(ev)} clockTitle={clock.name} selectedMonth={selM} settings={clock.settings||DS} theme={th}/>}
+        {view==="timeline"&&<TimelineView events={fEv} categories={clock.categories.filter(c=>c.visible)} onEventClick={ev=>setEditEv(ev)} clockTitle={clock.name} theme={th}/>}
+        {view==="list"&&<ListView events={fEv} categories={clock.categories} onMonthClick={m=>setSelM(selM===m?null:m)} onEventClick={ev=>setEditEv(ev)} theme={th}/>}
+
+        {selM!==null&&view!=="timeline"&&<MonthPanel month={selM} events={fEv} categories={clock.categories} onAdd={m=>setEditEv({month:m})} onEdit={ev=>setEditEv(ev)} onDelete={delEv} onClose={()=>setSelM(null)} theme={th}/>}
+      </div>
     </div>
-  );
+
+    {editEv&&<EventModal event={editEv.id?editEv:null} month={editEv.month} categories={clock.categories} onSave={saveEv} onCancel={()=>setEditEv(null)} theme={th}/>}
+    {showCat&&<CatModal categories={clock.categories} onSave={cats=>{upd({categories:cats.map(c=>({...c,visible:c.visible!==false}))});setShowCat(false)}} onCancel={()=>setShowCat(false)} theme={th}/>}
+    {showSett&&<SettModal settings={clock.settings||DS} onSave={s=>{upd({settings:s});setShowSett(false)}} onCancel={()=>setShowSett(false)} theme={th}/>}
+    {showShare&&<ShareModal clock={clock} onClose={()=>setShowShare(false)} theme={th}/>}
+    {toast&&<div className="toast">{toast}</div>}
+  </div>);
 }
 
-ReactDOM.render(<VuosikelloApp />, document.getElementById("root"));
+ReactDOM.render(<App/>,document.getElementById("root"));
 </script>
 </body>
 </html>
