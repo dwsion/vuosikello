@@ -238,8 +238,10 @@ function CircularClock({events,categories,onMonthClick,onEventClick,clockTitle,s
   const monthRI=centerR+6,monthRO=monthRI+monthRW;
   let nR=monthRO+2;
   const rings=vc.map((cat,ri)=>{const lRI=nR,lRO=lRI+catLW,dRI=lRO+1,dRO=dRI+dataRW;nR=dRO+2;return{cat,ri,lRI,lRO,dRI,dRO}});
-  const dayRI=nR+1,dayRO=dayRI+dayRingW;
-  const outerR=showDayRing?dayRO:nR;
+  const holRingW=s.showHolidays&&holidays.length?14:0;
+  const dayRI=nR+holRingW+2,dayRO=dayRI+dayRingW;
+  const holRI=nR+1,holRO=holRI+holRingW;
+  const outerR=showDayRing?dayRO:holRingW?holRO:nR;
 
   const cM=useMemo(()=>{const m={};vc.forEach((c,i)=>m[c.id]={...c,ri:i});return m},[vc]);
   const hMM=(e,ev)=>{if(!ref.current)return;const r=ref.current.getBoundingClientRect();setTip({x:e.clientX-r.left,y:e.clientY-r.top,ev})};
@@ -331,14 +333,37 @@ function CircularClock({events,categories,onMonthClick,onEventClick,clockTitle,s
       {Array.from({length:12},(_,i)=>{const d=mS(i),[x1,y1]=p2c(cx,cy,monthRI,d),[x2,y2]=p2c(cx,cy,outerR,d);
         return<line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke={th.card+"88"} strokeWidth="1"/>})}
 
-      {/* Holiday markers */}
-      {s.showHolidays&&holidays.map((h,hi)=>{
-        const frac=h.day/DIM[h.month];
-        const sd=mS(h.month),ed=mE(h.month),s2=Math.min(sd,ed),e2=Math.max(sd,ed);
-        const deg=s2+frac*(e2-s2);
-        const[hx,hy]=p2c(cx,cy,monthRO+2,deg);
-        return<circle key={hi} cx={hx} cy={hy} r={2.5} fill="#E8453C" opacity=".7"><title>{h.name} ({h.day}.{h.month+1}.)</title></circle>;
-      })}
+      {/* Holiday ring */}
+      {s.showHolidays&&holidays.length>0&&(<g>
+        {/* Ring background per month */}
+        {MF.map((_,mi)=>{const sd=mS(mi),ed=mE(mi),s2=Math.min(sd,ed),e2=Math.max(sd,ed);
+          return<path key={`hbg${mi}`} d={aP(cx,cy,holRO,holRI,s2,e2)} fill="#E8453C08" stroke={th.border} strokeWidth=".3"/>})}
+        {/* Holiday boxes */}
+        {holidays.map((h,hi)=>{
+          const sd=mS(h.month),ed=mE(h.month),s2=Math.min(sd,ed),e2=Math.max(sd,ed);
+          const span=e2-s2;
+          const dayFrac=h.day/DIM[h.month];
+          const center=s2+dayFrac*span;
+          const halfW=span*3/DIM[h.month]/2;
+          const hs=center-halfW,he=center+halfW;
+          const mid=(hs+he)/2;
+          const[tx,ty]=p2c(cx,cy,(holRI+holRO)/2,mid);
+          const rot=mid,fl=rot>90&&rot<270;
+          const arcLen=(Math.PI*2*((holRI+holRO)/2)*Math.abs(he-hs))/360;
+          const maxC=Math.max(2,Math.floor(arcLen/4.5));
+          let nm=h.name;if(nm.length>maxC)nm=nm.slice(0,maxC-1)+"\u2026";
+          return(<g key={hi} style={{cursor:"pointer"}}
+            onMouseMove={e=>{if(!ref.current)return;const r=ref.current.getBoundingClientRect();setTip({x:e.clientX-r.left,y:e.clientY-r.top,ev:{title:h.name,desc:`${h.day}.${h.month+1}. — Juhlapyhä`,month:h.month,tags:[],eventColor:"#E8453C",categoryId:null}})}}
+            onMouseLeave={()=>setTip(null)}>
+            <path d={aP(cx,cy,holRO,holRI,Math.min(hs,he),Math.max(hs,he))}
+              fill="#E8453C" opacity=".75" stroke="#fff" strokeWidth=".5"/>
+            <text x={tx} y={ty} textAnchor="middle" dominantBaseline="central"
+              fill="#fff" fontSize="5" fontWeight="700"
+              transform={`rotate(${fl?rot+180:rot},${tx},${ty})`}
+              style={{pointerEvents:"none"}}>{nm}</text>
+          </g>);
+        })}
+      </g>)}
 
       {/* Today marker line */}
       {(()=>{const td=new Date(),mi=td.getMonth(),day=td.getDate();
@@ -585,22 +610,73 @@ function ShareModal({clock,onClose,theme:th}){
   </div></div>);
 }
 
-function MonthPanel({month,events,categories,onAdd,onEdit,onDelete,onClose,theme:th}){
-  const cM=useMemo(()=>Object.fromEntries(categories.map(c=>[c.id,c])),[categories]);const me=events.filter(e=>e.month===month);
-  return(<div style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:12,padding:"14px 12px",marginTop:10,animation:"slideIn .2s",color:th.text}}>
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-      <h3 style={{margin:0,fontSize:14,fontWeight:800}}>{MF[month]} <span style={{color:th.sub,fontWeight:400,fontSize:11}}>{me.length}</span></h3>
-      <div style={{display:"flex",gap:4}}><button onClick={()=>onAdd(month)} style={{padding:"3px 9px",borderRadius:5,border:"none",background:"#5B5EA6",color:"#fff",fontSize:9,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>+ Lisää</button><button onClick={onClose} style={{padding:"3px 7px",borderRadius:5,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontSize:9,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✕</button></div></div>
-    {me.length===0?<div style={{color:th.sub,fontSize:10,padding:"12px 0",textAlign:"center"}}>Ei tapahtumia.</div>:
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:5}}>
-      {me.map(ev=>{const cat=cM[ev.categoryId];return(<div key={ev.id} style={{background:th.alt,borderRadius:7,padding:"8px 10px",borderLeft:`3px solid ${ev.eventColor||cat?.color||th.border}`}}>
-        <div style={{display:"flex",justifyContent:"space-between",gap:3}}>
-          <div><span style={{fontWeight:700,fontSize:11}}>{ev.title}</span>
-            {ev.startDay&&<span style={{fontSize:8,color:th.sub,marginLeft:4}}>{ev.startDay}.–{ev.endDay||DIM[month]}.{month+1}.</span>}
-            {ev.tags&&ev.tags.map(t=>{const tag=TAGS.find(x=>x.id===t);return tag?<span key={t} style={{marginLeft:2,fontSize:6,padding:"0 4px",borderRadius:99,background:tag.color+"22",color:tag.color,fontWeight:700}}>{tag.name}</span>:null})}</div>
-          <div style={{display:"flex",gap:2}}><button onClick={()=>onEdit(ev)} style={{background:"none",border:"none",cursor:"pointer",color:th.muted,fontSize:10}}>✎</button><button onClick={()=>onDelete(ev.id)} style={{background:"none",border:"none",cursor:"pointer",color:"#ef4444",fontSize:10}}>✕</button></div></div>
-        {ev.desc&&<div style={{fontSize:9,color:th.muted,marginTop:2}}>{ev.desc}</div>}
-      </div>)})}</div>}
+function MonthPanel({month,events,categories,holidays,onAdd,onEdit,onDelete,onClose,theme:th}){
+  const cM=useMemo(()=>Object.fromEntries(categories.map(c=>[c.id,c])),[categories]);
+  const me=events.filter(e=>e.month===month);
+  const mh=(holidays||[]).filter(h=>h.month===month);
+
+  // Combine events and holidays into a timeline sorted by day
+  const timeline=useMemo(()=>{
+    const items=[];
+    me.forEach(ev=>items.push({type:"event",day:ev.startDay||1,data:ev}));
+    mh.forEach(h=>items.push({type:"holiday",day:h.day,data:h}));
+    items.sort((a,b)=>a.day-b.day);
+    return items;
+  },[me,mh]);
+
+  const totalItems=me.length+mh.length;
+
+  return(<div style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:12,padding:"16px 14px",marginTop:10,animation:"slideIn .2s",color:th.text}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+      <h3 style={{margin:0,fontSize:15,fontWeight:800}}>
+        {MF[month]} {new Date().getFullYear()}
+        <span style={{color:th.sub,fontWeight:400,fontSize:11,marginLeft:6}}>{me.length} tapahtumaa{mh.length>0?` · ${mh.length} juhlapyhää`:""}</span>
+      </h3>
+      <div style={{display:"flex",gap:4}}>
+        <button onClick={()=>onAdd(month)} style={{padding:"4px 10px",borderRadius:6,border:"none",background:"#5B5EA6",color:"#fff",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>+ Lisää</button>
+        <button onClick={onClose} style={{padding:"4px 8px",borderRadius:6,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✕</button>
+      </div>
+    </div>
+
+    {totalItems===0?<div style={{color:th.sub,fontSize:11,padding:"16px 0",textAlign:"center"}}>Ei tapahtumia tai juhlapyhiä.</div>:
+    <div style={{display:"flex",flexDirection:"column",gap:4}}>
+      {timeline.map((item,idx)=>{
+        if(item.type==="holiday"){
+          const h=item.data;
+          return(<div key={`hol${idx}`} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",borderRadius:7,background:"#E8453C0C",borderLeft:"3px solid #E8453C"}}>
+            <div style={{width:36,textAlign:"center",flexShrink:0}}>
+              <div style={{fontSize:14,fontWeight:800,color:"#E8453C",lineHeight:1}}>{h.day}</div>
+              <div style={{fontSize:7,fontWeight:600,color:"#E8453C",opacity:.7}}>{WKDAYS[new Date(new Date().getFullYear(),h.month,h.day).getDay()]}</div>
+            </div>
+            <div>
+              <div style={{fontSize:11,fontWeight:700,color:"#E8453C"}}>{h.name}</div>
+              <div style={{fontSize:8,color:th.sub}}>Juhlapyhä</div>
+            </div>
+          </div>);
+        }
+        const ev=item.data;
+        const cat=cM[ev.categoryId];
+        return(<div key={ev.id} style={{display:"flex",alignItems:"flex-start",gap:8,padding:"8px 10px",borderRadius:7,background:th.alt,borderLeft:`3px solid ${ev.eventColor||cat?.color||th.border}`}}>
+          <div style={{width:36,textAlign:"center",flexShrink:0}}>
+            <div style={{fontSize:14,fontWeight:800,color:th.text,lineHeight:1}}>{ev.startDay||"–"}</div>
+            {ev.startDay&&<div style={{fontSize:7,fontWeight:600,color:th.sub}}>{WKDAYS[new Date(new Date().getFullYear(),month,ev.startDay).getDay()]}</div>}
+            {ev.endDay&&ev.endDay!==ev.startDay&&<div style={{fontSize:7,color:th.sub}}>→{ev.endDay}.</div>}
+          </div>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{display:"flex",alignItems:"center",gap:4,flexWrap:"wrap"}}>
+              <span style={{fontWeight:700,fontSize:12,color:th.text}}>{ev.title}</span>
+              {cat&&<span style={{fontSize:7,padding:"1px 5px",borderRadius:99,background:cat.color+"33",color:cat.color,fontWeight:600}}>{cat.name}</span>}
+              {ev.tags&&ev.tags.map(t=>{const tag=TAGS.find(x=>x.id===t);return tag?<span key={t} style={{fontSize:6,padding:"1px 4px",borderRadius:99,background:tag.color+"22",color:tag.color,fontWeight:700}}>{tag.name}</span>:null})}
+            </div>
+            {ev.desc&&<div style={{fontSize:10,color:th.muted,marginTop:2,lineHeight:1.4}}>{ev.desc}</div>}
+          </div>
+          <div style={{display:"flex",gap:2,flexShrink:0}}>
+            <button onClick={()=>onEdit(ev)} style={{background:"none",border:"none",cursor:"pointer",color:th.muted,fontSize:11}}>✎</button>
+            <button onClick={()=>onDelete(ev.id)} style={{background:"none",border:"none",cursor:"pointer",color:"#ef4444",fontSize:11}}>✕</button>
+          </div>
+        </div>);
+      })}
+    </div>}
   </div>);
 }
 
@@ -665,7 +741,7 @@ function App(){
         {view==="roadmap"&&<RoadmapView events={fEv} categories={clock.categories.filter(c=>c.visible)} onEventClick={ev=>setEditEv(ev)} clockTitle={clock.name} theme={th}/>}
         {view==="timeline"&&<TimelineView events={fEv} categories={clock.categories.filter(c=>c.visible)} onEventClick={ev=>setEditEv(ev)} clockTitle={clock.name} theme={th}/>}
         {view==="list"&&<ListView events={fEv} categories={clock.categories} onMonthClick={m=>setSelM(selM===m?null:m)} onEventClick={ev=>setEditEv(ev)} theme={th}/>}
-        {selM!==null&&view!=="timeline"&&view!=="roadmap"&&<MonthPanel month={selM} events={fEv} categories={clock.categories} onAdd={m=>setEditEv({month:m})} onEdit={ev=>setEditEv(ev)} onDelete={id=>upd({events:clock.events.filter(e=>e.id!==id)})} onClose={()=>setSelM(null)} theme={th}/>}
+        {selM!==null&&view!=="timeline"&&view!=="roadmap"&&<MonthPanel month={selM} events={fEv} categories={clock.categories} holidays={holidays} onAdd={m=>setEditEv({month:m})} onEdit={ev=>setEditEv(ev)} onDelete={id=>upd({events:clock.events.filter(e=>e.id!==id)})} onClose={()=>setSelM(null)} theme={th}/>}
       </div>
     </div>
     {editEv&&<EventModal event={editEv.id?editEv:null} month={editEv.month} categories={clock.categories} onSave={saveEv} onCancel={()=>setEditEv(null)} theme={th}/>}
