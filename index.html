@@ -8,6 +8,7 @@
 <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.5.0/lz-string.min.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'DM Sans', sans-serif; background: #f5f0e8; color: #3d3528; }
@@ -17,12 +18,15 @@
   button:hover { filter: brightness(1.08); }
   input:focus, textarea:focus, select:focus { border-color: #5B5EA6 !important; outline: none; }
   @keyframes fadeSlideIn { from { opacity:0; transform:translateY(8px) } to { opacity:1; transform:translateY(0) } }
+  @keyframes fadeIn { from { opacity:0 } to { opacity:1 } }
+  @keyframes scaleIn { from { opacity:0; transform:scale(0.95) } to { opacity:1; transform:scale(1) } }
+  .toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:#1e1b16; color:#f5f0e8; padding:12px 24px; border-radius:10px; font-size:14px; font-weight:600; z-index:2000; animation:fadeSlideIn 0.3s ease-out; box-shadow:0 8px 24px rgba(0,0,0,0.3); }
 </style>
 </head>
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useRef, useCallback, useMemo } = React;
+const { useState, useRef, useCallback, useMemo, useEffect } = React;
 
 const MONTHS_FI = ["Tammikuu","Helmikuu","Maaliskuu","Huhtikuu","Toukokuu","Kesäkuu","Heinäkuu","Elokuu","Syyskuu","Lokakuu","Marraskuu","Joulukuu"];
 const MONTHS_SHORT = ["Tammi","Helmi","Maalis","Huhti","Touko","Kesä","Heinä","Elo","Syys","Loka","Marras","Joulu"];
@@ -35,7 +39,7 @@ const DEFAULT_CATEGORIES = [
   { id: "cat5", name: "Kehittäminen", color: "#3A8FCD" },
 ];
 
-const SAMPLE_EVENTS = [
+const TEMPLATE_EVENTS = [
   { id: "e1", month: 0, title: "Vuosisuunnittelu", desc: "Strategian päivitys ja tavoitteiden asettaminen", categoryId: "cat1" },
   { id: "e2", month: 0, title: "Tilinpäätös", desc: "Edellisen vuoden tilinpäätöksen valmistelu", categoryId: "cat3" },
   { id: "e3", month: 1, title: "Kehityskeskustelut", desc: "Henkilökohtaiset kehityskeskustelut", categoryId: "cat4" },
@@ -44,15 +48,11 @@ const SAMPLE_EVENTS = [
   { id: "e6", month: 4, title: "Koulutuspäivä", desc: "Henkilöstön osaamisen kehittäminen", categoryId: "cat5" },
   { id: "e7", month: 5, title: "Puolivuotisarvio", desc: "Strategian väliarviointi", categoryId: "cat1" },
   { id: "e8", month: 5, title: "Kesäviestintä", desc: "Kesätiedote sidosryhmille", categoryId: "cat2" },
-  { id: "e9", month: 6, title: "Kesälomat", desc: "Lomakauden koordinointi", categoryId: "cat4" },
-  { id: "e10", month: 8, title: "Q3-raportointi", desc: "Kolmannen neljänneksen raportointi", categoryId: "cat3" },
-  { id: "e11", month: 8, title: "Syyssuunnittelu", desc: "Loppuvuoden suunnitelmat", categoryId: "cat1" },
-  { id: "e12", month: 9, title: "Budjetointi", desc: "Seuraavan vuoden budjetin valmistelu", categoryId: "cat3" },
-  { id: "e13", month: 10, title: "Kehittämispäivä", desc: "Organisaation kehittämispäivä", categoryId: "cat5" },
-  { id: "e14", month: 10, title: "Syysviestintä", desc: "Vuosikatsaus sidosryhmille", categoryId: "cat2" },
-  { id: "e15", month: 11, title: "Vuosikatsaus", desc: "Vuoden yhteenveto", categoryId: "cat2" },
-  { id: "e16", month: 11, title: "Pikkujoulut", desc: "Henkilöstötapahtuma", categoryId: "cat4" },
-  { id: "e17", month: 11, title: "Tilinpäätös aloitus", desc: "Tilinpäätöksen valmistelu alkaa", categoryId: "cat3" },
+  { id: "e9", month: 8, title: "Q3-raportointi", desc: "Kolmannen neljänneksen raportointi", categoryId: "cat3" },
+  { id: "e10", month: 9, title: "Budjetointi", desc: "Seuraavan vuoden budjetin valmistelu", categoryId: "cat3" },
+  { id: "e11", month: 10, title: "Kehittämispäivä", desc: "Organisaation kehittämispäivä", categoryId: "cat5" },
+  { id: "e12", month: 11, title: "Vuosikatsaus", desc: "Vuoden yhteenveto", categoryId: "cat2" },
+  { id: "e13", month: 11, title: "Pikkujoulut", desc: "Henkilöstötapahtuma", categoryId: "cat4" },
 ];
 
 const uid = () => "id_" + Math.random().toString(36).slice(2, 10);
@@ -70,6 +70,38 @@ const arcPath = (cx, cy, rOuter, rInner, startDeg, endDeg) => {
   const large = endDeg - startDeg > 180 ? 1 : 0;
   return `M${ox1},${oy1} A${rOuter},${rOuter} 0 ${large},1 ${ox2},${oy2} L${ix1},${iy1} A${rInner},${rInner} 0 ${large},0 ${ix2},${iy2} Z`;
 };
+
+/* ═══ Storage helpers ═══ */
+const STORAGE_KEY = "vuosikello_data_v2";
+
+function saveToStorage(clocks) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(clocks)); } catch {}
+}
+
+function loadFromStorage() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) { const d = JSON.parse(raw); if (Array.isArray(d) && d.length > 0) return d; }
+  } catch {}
+  return null;
+}
+
+function encodeShareData(clock) {
+  try {
+    const json = JSON.stringify({ name: clock.name, events: clock.events, categories: clock.categories });
+    return LZString.compressToEncodedURIComponent(json);
+  } catch { return null; }
+}
+
+function decodeShareData(encoded) {
+  try {
+    const json = LZString.decompressFromEncodedURIComponent(encoded);
+    if (!json) return null;
+    const d = JSON.parse(json);
+    if (d.name && d.categories) return d;
+  } catch {}
+  return null;
+}
 
 /* ═══ Styles ═══ */
 const btnStyle = (bg) => ({
@@ -97,17 +129,235 @@ const modalBox = {
   boxShadow: "0 16px 48px rgba(0,0,0,0.2)"
 };
 
+/* ═══ Onboarding Wizard ═══ */
+function OnboardingWizard({ onComplete }) {
+  const [step, setStep] = useState(1);
+  const [clockName, setClockName] = useState("");
+  const [cats, setCats] = useState([
+    { id: uid(), name: "", color: "#5B5EA6" },
+    { id: uid(), name: "", color: "#E8873D" },
+    { id: uid(), name: "", color: "#3B9B74" },
+  ]);
+  const presetColors = ["#5B5EA6","#E8873D","#3B9B74","#D4546A","#3A8FCD","#9B59B6","#E74C3C","#1ABC9C","#F39C12","#2C3E50"];
+
+  const addCat = () => setCats([...cats, { id: uid(), name: "", color: presetColors[cats.length % presetColors.length] }]);
+  const removeCat = (id) => cats.length > 1 && setCats(cats.filter(c => c.id !== id));
+  const updateCat = (id, field, val) => setCats(cats.map(c => c.id === id ? { ...c, [field]: val } : c));
+
+  const handleFinish = (useTemplate) => {
+    const validCats = cats.filter(c => c.name.trim());
+    const finalCats = validCats.length > 0 ? validCats : [...DEFAULT_CATEGORIES];
+    const clock = {
+      id: uid(),
+      name: clockName.trim() || "Vuosikello",
+      categories: finalCats,
+      events: useTemplate ? TEMPLATE_EVENTS.filter(e => finalCats.some(c => c.id === e.categoryId)) : []
+    };
+    // If using template but custom categories, remap events
+    if (useTemplate && validCats.length > 0) {
+      clock.events = TEMPLATE_EVENTS.map(e => ({ ...e, id: uid(), categoryId: validCats[Math.floor(Math.random() * validCats.length)].id }));
+    }
+    onComplete([clock]);
+  };
+
+  return (
+    <div style={{
+      minHeight: "100vh", background: "#f5f0e8", display: "flex", alignItems: "center", justifyContent: "center",
+      padding: 20, fontFamily: "'DM Sans', sans-serif"
+    }}>
+      <div style={{
+        background: "#fdfcf9", borderRadius: 20, padding: "40px 36px", maxWidth: 520, width: "100%",
+        boxShadow: "0 8px 40px rgba(0,0,0,0.08)", border: "1px solid #e0d9cc",
+        animation: "scaleIn 0.3s ease-out"
+      }}>
+        {/* Logo */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 32 }}>
+          <div style={{
+            width: 48, height: 48, borderRadius: 14,
+            background: "linear-gradient(135deg, #5B5EA6, #3A8FCD)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            color: "#fff", fontSize: 24, fontWeight: 800
+          }}>◎</div>
+          <div>
+            <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0 }}>Vuosikello</h1>
+            <div style={{ fontSize: 12, color: "#8b7e6a" }}>Luo oma vuosikellosi</div>
+          </div>
+        </div>
+
+        {/* Step indicator */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 28 }}>
+          {[1, 2, 3].map(s => (
+            <div key={s} style={{
+              flex: 1, height: 4, borderRadius: 2,
+              background: s <= step ? "#5B5EA6" : "#e0d9cc",
+              transition: "background 0.3s"
+            }} />
+          ))}
+        </div>
+
+        {step === 1 && (
+          <div style={{ animation: "fadeIn 0.3s ease-out" }}>
+            <h2 style={{ fontSize: 18, fontWeight: 800, marginBottom: 8 }}>Anna vuosikellon nimi</h2>
+            <p style={{ fontSize: 13, color: "#8b7e6a", marginBottom: 20 }}>
+              Mikä on tämän vuosikellon tarkoitus? Esim. "Tiimin vuosikello 2026" tai "HR-prosessit".
+            </p>
+            <input value={clockName} onChange={e => setClockName(e.target.value)}
+              placeholder="Vuosikellon nimi..." style={{ ...inputStyle, fontSize: 16, padding: "14px 16px" }}
+              autoFocus onKeyDown={e => e.key === "Enter" && setStep(2)} />
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
+              <button onClick={() => setStep(2)} style={btnStyle("#5B5EA6")}>Seuraava →</button>
+            </div>
+          </div>
+        )}
+
+        {step === 2 && (
+          <div style={{ animation: "fadeIn 0.3s ease-out" }}>
+            <h2 style={{ fontSize: 18, fontWeight: 800, marginBottom: 8 }}>Määrittele kategoriat</h2>
+            <p style={{ fontSize: 13, color: "#8b7e6a", marginBottom: 20 }}>
+              Jokainen kategoria muodostaa oman kehänsä vuosikellossa. Voit lisätä myöhemminkin.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
+              {cats.map((c, i) => (
+                <div key={c.id} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <input type="color" value={c.color} onChange={e => updateCat(c.id, "color", e.target.value)}
+                    style={{ width: 36, height: 36, border: "none", borderRadius: 8, cursor: "pointer", background: "transparent" }} />
+                  <input value={c.name} onChange={e => updateCat(c.id, "name", e.target.value)}
+                    placeholder={`Kategoria ${i + 1}`}
+                    style={{ ...inputStyle, marginBottom: 0, flex: 1 }} />
+                  {cats.length > 1 && (
+                    <button onClick={() => removeCat(c.id)} style={{ ...iconBtn, color: "#D4546A" }}>✕</button>
+                  )}
+                </div>
+              ))}
+            </div>
+            {cats.length < 8 && (
+              <button onClick={addCat} style={{ ...btnStyle("#f5f0e8"), color: "#6b5e4f", width: "100%", marginBottom: 16, border: "2px dashed #d5cec0" }}>
+                + Lisää kategoria
+              </button>
+            )}
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
+              <button onClick={() => setStep(1)} style={{ ...btnStyle("#e0d9cc"), color: "#6b5e4f" }}>← Takaisin</button>
+              <button onClick={() => setStep(3)} style={btnStyle("#5B5EA6")}>Seuraava →</button>
+            </div>
+          </div>
+        )}
+
+        {step === 3 && (
+          <div style={{ animation: "fadeIn 0.3s ease-out" }}>
+            <h2 style={{ fontSize: 18, fontWeight: 800, marginBottom: 8 }}>Miten haluat aloittaa?</h2>
+            <p style={{ fontSize: 13, color: "#8b7e6a", marginBottom: 24 }}>
+              Voit aloittaa tyhjästä tai käyttää valmista mallia inspiraationa.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <button onClick={() => handleFinish(false)} style={{
+                padding: "20px 24px", borderRadius: 14, border: "2px solid #e0d9cc",
+                background: "#fff", cursor: "pointer", textAlign: "left", fontFamily: "inherit",
+                transition: "all 0.15s"
+              }}>
+                <div style={{ fontWeight: 800, fontSize: 15, color: "#3d3528", marginBottom: 4 }}>📝 Tyhjä vuosikello</div>
+                <div style={{ fontSize: 12, color: "#8b7e6a" }}>Aloita puhtaalta pöydältä ja lisää tapahtumat itse.</div>
+              </button>
+              <button onClick={() => handleFinish(true)} style={{
+                padding: "20px 24px", borderRadius: 14, border: "2px solid #e0d9cc",
+                background: "#fff", cursor: "pointer", textAlign: "left", fontFamily: "inherit",
+                transition: "all 0.15s"
+              }}>
+                <div style={{ fontWeight: 800, fontSize: 15, color: "#3d3528", marginBottom: 4 }}>📋 Esimerkki&shy;pohja</div>
+                <div style={{ fontSize: 12, color: "#8b7e6a" }}>Aloita valmiilla tapahtumilla, joita voit muokata.</div>
+              </button>
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-start", marginTop: 16 }}>
+              <button onClick={() => setStep(2)} style={{ ...btnStyle("#e0d9cc"), color: "#6b5e4f" }}>← Takaisin</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ═══ Share Modal ═══ */
+function ShareModal({ clock, onClose }) {
+  const [copied, setCopied] = useState(false);
+  const encoded = encodeShareData(clock);
+  const shareUrl = encoded ? window.location.origin + window.location.pathname + "?d=" + encoded : null;
+  const tooLarge = !shareUrl || shareUrl.length > 8000;
+
+  const copyLink = () => {
+    if (shareUrl) {
+      navigator.clipboard.writeText(shareUrl).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
+    }
+  };
+
+  const exportJson = () => {
+    const blob = new Blob([JSON.stringify([clock], null, 2)], { type: "application/json" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+    a.download = (clock.name || "vuosikello") + ".json"; a.click();
+  };
+
+  return (
+    <div style={overlay} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{ ...modalBox, maxWidth: 480 }}>
+        <h3 style={{ margin: "0 0 20px", color: "#3d3528", fontSize: 18, fontWeight: 800 }}>Jaa vuosikello</h3>
+
+        {!tooLarge && (
+          <>
+            <label style={labelStyle}>Jakolinkki (toimii Teamsissa ja selaimessa)</label>
+            <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+              <input value={shareUrl} readOnly style={{ ...inputStyle, marginBottom: 0, flex: 1, fontSize: 11, color: "#8b7e6a" }}
+                onClick={e => e.target.select()} />
+              <button onClick={copyLink} style={btnStyle(copied ? "#3B9B74" : "#5B5EA6")}>
+                {copied ? "✓ Kopioitu!" : "Kopioi"}
+              </button>
+            </div>
+            <p style={{ fontSize: 11, color: "#8b7e6a", marginBottom: 20 }}>
+              Kuka tahansa jolla on linkki voi avata tämän vuosikellon. Linkki sisältää kaiken datan — erillistä palvelinta ei tarvita.
+            </p>
+          </>
+        )}
+
+        {tooLarge && (
+          <p style={{ fontSize: 13, color: "#D4546A", marginBottom: 16, padding: "12px 16px", background: "#D4546A11", borderRadius: 10 }}>
+            Vuosikellossa on liikaa dataa jakolinkille. Käytä JSON-vientiä jakamiseen.
+          </p>
+        )}
+
+        <label style={labelStyle}>Tai vie JSON-tiedostona</label>
+        <button onClick={exportJson} style={{ ...btnStyle("#e0d9cc"), color: "#6b5e4f", width: "100%", marginBottom: 16 }}>
+          💾 Lataa JSON-tiedosto
+        </button>
+
+        <div style={{ borderTop: "1px solid #e0d9cc", paddingTop: 16 }}>
+          <label style={labelStyle}>Teams-ohje</label>
+          <p style={{ fontSize: 12, color: "#6b5e4f", lineHeight: 1.6 }}>
+            1. Kopioi jakolinkki yllä<br/>
+            2. Avaa Teams → kanava → "+" → "Website"<br/>
+            3. Liitä linkki ja anna nimi<br/>
+            4. Kaikki kanavan jäsenet näkevät saman kellon
+          </p>
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
+          <button onClick={onClose} style={{ ...btnStyle("#e0d9cc"), color: "#6b5e4f" }}>Sulje</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ═══ Circular Clock ═══ */
 function CircularClock({ events, categories, onMonthClick, onEventClick, clockTitle, selectedMonth }) {
   const [hoveredEvent, setHoveredEvent] = useState(null);
   const [tooltip, setTooltip] = useState(null);
   const svgRef = useRef(null);
 
-  const size = 760;
+  const size = 800;
   const cx = size / 2, cy = size / 2;
   const innerR = 80, monthLabelR = 105, ringStart = 120, ringGap = 4;
-  const ringWidth = Math.min(60, (size / 2 - ringStart - 30) / Math.max(categories.length, 1) - ringGap);
+  const ringWidth = Math.min(55, (size / 2 - ringStart - 60) / Math.max(categories.length, 1) - ringGap);
   const outerR = ringStart + categories.length * (ringWidth + ringGap);
+  const legendRingWidth = 18;
+  const legendR = outerR + 6; // inner radius of legend ring
   const catMap = useMemo(() => Object.fromEntries(categories.map((c, i) => [c.id, { ...c, ringIndex: i }])), [categories]);
   const currentMonth = new Date().getMonth();
 
@@ -135,9 +385,7 @@ function CircularClock({ events, categories, onMonthClick, onEventClick, clockTi
         style={{ width: "100%", height: "auto", fontFamily: "'DM Sans', sans-serif" }}
         onMouseLeave={() => setTooltip(null)}>
         <defs>
-          <filter id="boxShadow">
-            <feDropShadow dx="0" dy="1" stdDeviation="2" floodOpacity="0.3" />
-          </filter>
+          <filter id="boxShadow"><feDropShadow dx="0" dy="1" stdDeviation="2" floodOpacity="0.3" /></filter>
         </defs>
 
         {categories.map((cat, ri) => {
@@ -148,9 +396,7 @@ function CircularClock({ events, categories, onMonthClick, onEventClick, clockTi
               {MONTHS_FI.map((_, mi) => (
                 <path key={mi} d={arcPath(cx, cy, rO, rI, mi * 30, (mi + 1) * 30)}
                   fill={mi === selectedMonth ? "#e8e4de" : mi === currentMonth ? "#f5f0e8" : ri % 2 === 0 ? "#f9f6f0" : "#f0ebe1"}
-                  stroke="#e0d9cc" strokeWidth="0.5"
-                  onClick={() => onMonthClick(mi)}
-                  style={{ cursor: "pointer" }} />
+                  stroke="#e0d9cc" strokeWidth="0.5" onClick={() => onMonthClick(mi)} style={{ cursor: "pointer" }} />
               ))}
             </g>
           );
@@ -168,16 +414,13 @@ function CircularClock({ events, categories, onMonthClick, onEventClick, clockTi
         {MONTHS_FI.map((name, i) => {
           const midDeg = i * 30 + 15;
           const [lx, ly] = pol2cart(cx, cy, monthLabelR, midDeg);
-          const rot = midDeg;
-          const flip = rot > 90 && rot < 270;
+          const rot = midDeg, flip = rot > 90 && rot < 270;
           return (
-            <text key={i} x={lx} y={ly}
-              textAnchor="middle" dominantBaseline="central"
+            <text key={i} x={lx} y={ly} textAnchor="middle" dominantBaseline="central"
               fill={i === currentMonth ? "#2563eb" : "#6b5e4f"}
               fontSize="11" fontWeight={i === currentMonth ? "800" : "600"}
               transform={`rotate(${flip ? rot + 180 : rot}, ${lx}, ${ly})`}
-              onClick={() => onMonthClick(i)}
-              style={{ cursor: "pointer", letterSpacing: "0.03em" }}>
+              onClick={() => onMonthClick(i)} style={{ cursor: "pointer", letterSpacing: "0.03em" }}>
               {MONTHS_SHORT[i]}
             </text>
           );
@@ -199,8 +442,7 @@ function CircularClock({ events, categories, onMonthClick, onEventClick, clockTi
           const rO = ringStart + (ri + 1) * (ringWidth + ringGap) - ringGap - 2;
           const rMid = (rI + rO) / 2;
           const startDeg = mi * 30 + 1, endDeg = (mi + 1) * 30 - 1;
-          const totalArc = endDeg - startDeg;
-          const n = evs.length, sliceArc = totalArc / n;
+          const n = evs.length, sliceArc = (endDeg - startDeg) / n;
 
           return evs.map((ev, ei) => {
             const evStart = startDeg + ei * sliceArc + 0.5;
@@ -209,8 +451,7 @@ function CircularClock({ events, categories, onMonthClick, onEventClick, clockTi
             const boxPath = arcPath(cx, cy, rO, rI, evStart, evEnd);
             const isHovered = hoveredEvent === ev.id;
             const [tx, ty] = pol2cart(cx, cy, rMid, evMidDeg);
-            const textRot = evMidDeg;
-            const flipText = textRot > 90 && textRot < 270;
+            const textRot = evMidDeg, flipText = textRot > 90 && textRot < 270;
             const finalRot = flipText ? textRot + 180 : textRot;
             const arcLen = (Math.PI * 2 * rMid * (evEnd - evStart)) / 360;
             const maxChars = Math.max(3, Math.floor(arcLen / 6.5));
@@ -224,8 +465,7 @@ function CircularClock({ events, categories, onMonthClick, onEventClick, clockTi
                 onMouseMove={(e) => handleMouseMove(e, ev)}
                 onClick={(e) => { e.stopPropagation(); onEventClick(ev); }}
                 style={{ cursor: "pointer" }}>
-                <path d={boxPath} fill={cat.color}
-                  opacity={isHovered ? 1 : 0.85}
+                <path d={boxPath} fill={cat.color} opacity={isHovered ? 1 : 0.85}
                   stroke={isHovered ? "#fff" : "none"} strokeWidth={isHovered ? 2 : 0}
                   style={{ transition: "opacity 0.15s" }}
                   filter={isHovered ? "url(#boxShadow)" : undefined} />
@@ -240,13 +480,39 @@ function CircularClock({ events, categories, onMonthClick, onEventClick, clockTi
           });
         })}
 
+        {/* Outer category legend ring */}
         {categories.map((cat, ri) => {
-          const rMid = ringStart + ri * (ringWidth + ringGap) + ringWidth / 2;
-          const [lx, ly] = pol2cart(cx, cy, rMid, 358);
+          const totalCats = categories.length;
+          const sliceDeg = 360 / totalCats;
+          const startDeg = ri * sliceDeg;
+          const endDeg = (ri + 1) * sliceDeg;
+          const rI = legendR;
+          const rO = legendR + legendRingWidth;
+          const midDeg = (startDeg + endDeg) / 2;
+          const pathId = `legendArc_${ri}`;
+
+          // Text path - clockwise arc at mid radius
+          const rText = rI + legendRingWidth / 2;
+          // For text readability, flip text on bottom half
+          const needsFlip = midDeg > 90 && midDeg < 270;
+          const tStartDeg = needsFlip ? endDeg - 1 : startDeg + 1;
+          const tEndDeg = needsFlip ? startDeg + 1 : endDeg - 1;
+          const [tsx, tsy] = pol2cart(cx, cy, rText, tStartDeg);
+          const [tex, tey] = pol2cart(cx, cy, rText, tEndDeg);
+          const sweepFlag = needsFlip ? 0 : 1;
+
           return (
-            <g key={cat.id + "_label"}>
-              <rect x={lx + 4} y={ly - 8} width={10} height={16} rx={3} fill={cat.color} opacity="0.9" />
-              <text x={lx + 18} y={ly} dominantBaseline="central" fill="#6b5e4f" fontSize="9" fontWeight="700">{cat.name}</text>
+            <g key={cat.id + "_legend"}>
+              <path d={arcPath(cx, cy, rO, rI, startDeg, endDeg)}
+                fill={cat.color} opacity="0.9" stroke="#fdfcf9" strokeWidth="2" />
+              <defs>
+                <path id={pathId} d={`M${tsx},${tsy} A${rText},${rText} 0 0,${sweepFlag} ${tex},${tey}`} fill="none" />
+              </defs>
+              <text fontSize="9" fontWeight="700" fill="#fff" style={{ letterSpacing: "0.06em" }}>
+                <textPath href={`#${pathId}`} startOffset="50%" textAnchor="middle">
+                  {cat.name}
+                </textPath>
+              </text>
             </g>
           );
         })}
@@ -271,9 +537,8 @@ function CircularClock({ events, categories, onMonthClick, onEventClick, clockTi
   );
 }
 
-/* ═══ Timeline View ═══ */
+/* ═══ Timeline View (table) ═══ */
 function TimelineView({ events, categories, onMonthClick, onEventClick }) {
-  const catMap = useMemo(() => Object.fromEntries(categories.map(c => [c.id, c])), [categories]);
   const currentMonth = new Date().getMonth();
   return (
     <div style={{ overflowX: "auto", padding: "12px 0", borderRadius: 12 }}>
@@ -329,6 +594,224 @@ function TimelineView({ events, categories, onMonthClick, onEventClick }) {
   );
 }
 
+/* ═══ Visual Vertical Timeline ═══ */
+function VisualTimeline({ events, categories, onEventClick, clockTitle }) {
+  const catMap = useMemo(() => Object.fromEntries(categories.map(c => [c.id, c])), [categories]);
+  const currentMonth = new Date().getMonth();
+  const year = new Date().getFullYear();
+
+  const monthGroups = MONTHS_FI.map((name, i) => ({
+    name, short: MONTHS_SHORT[i], index: i,
+    events: events.filter(e => e.month === i)
+  }));
+
+  // Q-labels
+  const quarters = ["Q1","Q1","Q1","Q2","Q2","Q2","Q3","Q3","Q3","Q4","Q4","Q4"];
+
+  return (
+    <div style={{ maxWidth: 720, margin: "0 auto", padding: "0 16px" }}>
+      {/* Header */}
+      <div style={{
+        textAlign: "center", padding: "32px 0 28px",
+        borderBottom: "2px solid #e0d9cc", marginBottom: 0
+      }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: "#8b7e6a", letterSpacing: "0.2em", textTransform: "uppercase", marginBottom: 6 }}>
+          {clockTitle || "Vuosikello"}
+        </div>
+        <div style={{ fontSize: 32, fontWeight: 800, color: "#3d3528", letterSpacing: "-0.03em", lineHeight: 1 }}>
+          Aikajana {year}
+        </div>
+        {/* Legend */}
+        <div style={{ display: "flex", justifyContent: "center", gap: 16, flexWrap: "wrap", marginTop: 16 }}>
+          {categories.map(c => (
+            <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "#6b5e4f", fontWeight: 600 }}>
+              <span style={{ width: 10, height: 10, borderRadius: 3, background: c.color, boxShadow: `0 2px 6px ${c.color}44` }} />
+              {c.name}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Timeline body */}
+      <div style={{ position: "relative", padding: "0 0 40px" }}>
+        {/* Central vertical line */}
+        <div style={{
+          position: "absolute", left: 32, top: 0, bottom: 0, width: 2,
+          background: "linear-gradient(180deg, #d5cec0 0%, #e0d9cc 50%, #d5cec0 100%)"
+        }} />
+
+        {monthGroups.map((mg, idx) => {
+          const isCurrent = mg.index === currentMonth;
+          const hasEvents = mg.events.length > 0;
+          const isNewQuarter = idx % 3 === 0;
+
+          return (
+            <div key={mg.index}>
+              {/* Quarter divider */}
+              {isNewQuarter && (
+                <div style={{
+                  display: "flex", alignItems: "center", gap: 12,
+                  padding: idx === 0 ? "24px 0 16px" : "28px 0 16px",
+                  marginLeft: 22
+                }}>
+                  <div style={{
+                    width: 22, height: 22, borderRadius: 6,
+                    background: "#3d3528", color: "#fff",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 9, fontWeight: 800, letterSpacing: "0.04em"
+                  }}>{quarters[idx]}</div>
+                  <div style={{ flex: 1, height: 1, background: "#d5cec0" }} />
+                </div>
+              )}
+
+              {/* Month row */}
+              <div style={{
+                display: "flex", alignItems: "flex-start", gap: 0,
+                position: "relative",
+                padding: hasEvents ? "0 0 6px" : "0",
+                minHeight: hasEvents ? "auto" : 40
+              }}>
+                {/* Left: month indicator on the line */}
+                <div style={{
+                  width: 64, flexShrink: 0, display: "flex", flexDirection: "column",
+                  alignItems: "center", position: "relative", paddingTop: 2
+                }}>
+                  {/* Dot on the line */}
+                  <div style={{
+                    width: isCurrent ? 18 : 12, height: isCurrent ? 18 : 12,
+                    borderRadius: "50%",
+                    background: isCurrent ? "#5B5EA6" : hasEvents ? "#3d3528" : "#d5cec0",
+                    border: isCurrent ? "3px solid #5B5EA644" : "none",
+                    boxShadow: isCurrent ? "0 0 12px #5B5EA644" : "none",
+                    position: "relative", zIndex: 2,
+                    transition: "all 0.2s"
+                  }} />
+                  {/* Month number */}
+                  <div style={{
+                    fontSize: 9, fontWeight: 800, color: isCurrent ? "#5B5EA6" : "#8b7e6a",
+                    marginTop: 4, letterSpacing: "0.02em"
+                  }}>
+                    {String(mg.index + 1).padStart(2, "0")}
+                  </div>
+                </div>
+
+                {/* Right: content */}
+                <div style={{ flex: 1, paddingBottom: 12, paddingTop: 0 }}>
+                  {/* Month name header */}
+                  <div style={{
+                    display: "flex", alignItems: "baseline", gap: 8,
+                    marginBottom: hasEvents ? 8 : 0,
+                    marginTop: -2
+                  }}>
+                    <span style={{
+                      fontSize: 16, fontWeight: 800,
+                      color: isCurrent ? "#5B5EA6" : "#3d3528"
+                    }}>
+                      {mg.name}
+                    </span>
+                    {isCurrent && (
+                      <span style={{
+                        fontSize: 9, fontWeight: 700, color: "#fff",
+                        background: "#5B5EA6", padding: "2px 8px", borderRadius: 99,
+                        letterSpacing: "0.05em"
+                      }}>NYT</span>
+                    )}
+                    {hasEvents && (
+                      <span style={{ fontSize: 11, color: "#8b7e6a", fontWeight: 500 }}>
+                        {mg.events.length} {mg.events.length === 1 ? "tapahtuma" : "tapahtumaa"}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Event cards */}
+                  {mg.events.map((ev, ei) => {
+                    const cat = catMap[ev.categoryId];
+                    return (
+                      <div key={ev.id} onClick={() => onEventClick(ev)}
+                        style={{
+                          background: "#fff",
+                          borderRadius: 10,
+                          padding: "12px 16px",
+                          marginBottom: 6,
+                          cursor: "pointer",
+                          borderLeft: `4px solid ${cat?.color || "#d5cec0"}`,
+                          boxShadow: "0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.03)",
+                          transition: "all 0.2s ease",
+                          position: "relative"
+                        }}
+                        onMouseEnter={e => {
+                          e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.08), 0 8px 24px rgba(0,0,0,0.06)";
+                          e.currentTarget.style.transform = "translateY(-1px)";
+                        }}
+                        onMouseLeave={e => {
+                          e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.03)";
+                          e.currentTarget.style.transform = "translateY(0)";
+                        }}>
+                        {/* Top row: title + category */}
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: ev.desc ? 6 : 0 }}>
+                          <span style={{ fontWeight: 700, fontSize: 14, color: "#3d3528", lineHeight: 1.3 }}>
+                            {ev.title}
+                          </span>
+                          {cat && (
+                            <span style={{
+                              fontSize: 9, fontWeight: 700, padding: "3px 8px", borderRadius: 99,
+                              background: cat.color + "14", color: cat.color,
+                              whiteSpace: "nowrap", flexShrink: 0, letterSpacing: "0.02em"
+                            }}>{cat.name}</span>
+                          )}
+                        </div>
+                        {/* Description */}
+                        {ev.desc && (
+                          <div style={{ fontSize: 12, color: "#6b5e4f", lineHeight: 1.6 }}>
+                            {ev.desc}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {/* Empty month subtle indicator */}
+                  {!hasEvents && (
+                    <div style={{
+                      fontSize: 11, color: "#c4b9a8", fontStyle: "italic", paddingTop: 2
+                    }}>—</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+
+        {/* End cap */}
+        <div style={{
+          position: "absolute", left: 27, bottom: 10,
+          width: 12, height: 12, borderRadius: "50%",
+          border: "2px solid #d5cec0", background: "#f5f0e8"
+        }} />
+      </div>
+
+      {/* Footer stats */}
+      <div style={{
+        display: "flex", justifyContent: "center", gap: 32, padding: "20px 0",
+        borderTop: "1px solid #e0d9cc"
+      }}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 22, fontWeight: 800, color: "#3d3528" }}>{events.length}</div>
+          <div style={{ fontSize: 10, fontWeight: 600, color: "#8b7e6a", letterSpacing: "0.05em" }}>TAPAHTUMAA</div>
+        </div>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 22, fontWeight: 800, color: "#3d3528" }}>{categories.length}</div>
+          <div style={{ fontSize: 10, fontWeight: 600, color: "#8b7e6a", letterSpacing: "0.05em" }}>KATEGORIAA</div>
+        </div>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 22, fontWeight: 800, color: "#3d3528" }}>{monthGroups.filter(m => m.events.length > 0).length}</div>
+          <div style={{ fontSize: 10, fontWeight: 600, color: "#8b7e6a", letterSpacing: "0.05em" }}>AKTIIVISTA KK</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ═══ Month Panel ═══ */
 function MonthPanel({ month, events, categories, onAdd, onEdit, onDelete, onClose }) {
   const catMap = useMemo(() => Object.fromEntries(categories.map(c => [c.id, c])), [categories]);
@@ -359,8 +842,7 @@ function MonthPanel({ month, events, categories, onAdd, onEdit, onDelete, onClos
             return (
               <div key={ev.id} style={{
                 background: "#fff", borderRadius: 10, padding: "14px 16px",
-                borderLeft: `5px solid ${cat?.color || "#888"}`,
-                boxShadow: "0 1px 4px rgba(0,0,0,0.06)"
+                borderLeft: `5px solid ${cat?.color || "#888"}`, boxShadow: "0 1px 4px rgba(0,0,0,0.06)"
               }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 6 }}>
                   <div>
@@ -443,7 +925,7 @@ function CategoryModal({ categories, onSave, onCancel }) {
     <div style={overlay} onClick={onCancel}>
       <div onClick={e => e.stopPropagation()} style={modalBox}>
         <h3 style={{ margin: "0 0 20px", color: "#3d3528", fontSize: 18, fontWeight: 800 }}>Kategoriat</h3>
-        <p style={{ fontSize: 12, color: "#8b7e6a", marginBottom: 16 }}>Jokainen kategoria muodostaa oman kehänsä vuosikellossa.</p>
+        <p style={{ fontSize: 12, color: "#8b7e6a", marginBottom: 16 }}>Jokainen kategoria muodostaa oman kehänsä.</p>
         <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
           {cats.map((c, i) => (
             <div key={c.id} style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -457,7 +939,7 @@ function CategoryModal({ categories, onSave, onCancel }) {
           ))}
         </div>
         <button onClick={addCat} style={{ ...btnStyle("#f5f0e8"), color: "#6b5e4f", width: "100%", marginBottom: 16, border: "2px dashed #d5cec0" }}>
-          + Lisää kategoria (uusi kehä)
+          + Lisää kategoria
         </button>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
           <button onClick={onCancel} style={{ ...btnStyle("#e0d9cc"), color: "#6b5e4f" }}>Peruuta</button>
@@ -490,19 +972,17 @@ function NameModal({ currentName, title, onSave, onCancel }) {
 function handlePrint(clockTitle, events, categories) {
   const catMap = Object.fromEntries(categories.map(c => [c.id, c]));
   let html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${clockTitle}</title>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700;800&display=swap');
-    *{box-sizing:border-box;margin:0;padding:0}body{font-family:'DM Sans',sans-serif;color:#3d3528;padding:32px}
-    h1{font-size:24px;margin-bottom:4px}.sub{color:#8b7e6a;margin-bottom:20px;font-size:13px}
-    .legend{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:24px}
-    .legend-item{display:flex;align-items:center;gap:5px;font-size:12px;font-weight:600}
-    .dot{width:10px;height:10px;border-radius:3px;flex-shrink:0}
-    .month{page-break-inside:avoid;margin-bottom:18px}
-    .month-title{font-size:15px;font-weight:800;border-bottom:2px solid #e0d9cc;padding-bottom:4px;margin-bottom:8px}
-    .ev{display:flex;gap:10px;padding:6px 0;border-bottom:1px solid #f0ebe1}
-    .ev-title{font-weight:700;font-size:13px}.ev-desc{font-size:12px;color:#6b5e4f;margin-top:2px}
-    .ev-cat{font-size:10px;color:#8b7e6a}@media print{body{padding:16px}}
-  </style></head><body>
+  <style>@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700;800&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0}body{font-family:'DM Sans',sans-serif;color:#3d3528;padding:32px}
+  h1{font-size:24px;margin-bottom:4px}.sub{color:#8b7e6a;margin-bottom:20px;font-size:13px}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:24px}
+  .legend-item{display:flex;align-items:center;gap:5px;font-size:12px;font-weight:600}
+  .dot{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+  .month{page-break-inside:avoid;margin-bottom:18px}
+  .month-title{font-size:15px;font-weight:800;border-bottom:2px solid #e0d9cc;padding-bottom:4px;margin-bottom:8px}
+  .ev{display:flex;gap:10px;padding:6px 0;border-bottom:1px solid #f0ebe1}
+  .ev-title{font-weight:700;font-size:13px}.ev-desc{font-size:12px;color:#6b5e4f;margin-top:2px}
+  .ev-cat{font-size:10px;color:#8b7e6a}@media print{body{padding:16px}}</style></head><body>
   <h1>${clockTitle}</h1><div class="sub">${new Date().getFullYear()} &mdash; ${events.length} tapahtumaa</div>
   <div class="legend">${categories.map(c => `<div class="legend-item"><div class="dot" style="background:${c.color}"></div>${c.name}</div>`).join("")}</div>`;
   MONTHS_FI.forEach((name, i) => {
@@ -522,25 +1002,63 @@ function handlePrint(clockTitle, events, categories) {
 
 /* ═══ Main App ═══ */
 function VuosikelloApp() {
-  const [clocks, setClocks] = useState([
-    { id: "clock1", name: "Vuosikello", events: [...SAMPLE_EVENTS], categories: [...DEFAULT_CATEGORIES] }
-  ]);
-  const [activeClockId, setActiveClockId] = useState("clock1");
+  // Check URL for shared data first
+  const [initData] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const encoded = params.get("d");
+    if (encoded) {
+      const shared = decodeShareData(encoded);
+      if (shared) {
+        const clock = { id: uid(), name: shared.name, events: shared.events || [], categories: shared.categories || DEFAULT_CATEGORIES };
+        return { clocks: [clock], fromShare: true };
+      }
+    }
+    const stored = loadFromStorage();
+    if (stored) return { clocks: stored, fromShare: false };
+    return null;
+  });
+
+  const [showOnboarding, setShowOnboarding] = useState(!initData);
+  const [clocks, setClocks] = useState(initData ? initData.clocks : []);
+  const [activeClockId, setActiveClockId] = useState(initData?.clocks?.[0]?.id || "");
   const [viewMode, setViewMode] = useState("circular");
   const [selectedMonth, setSelectedMonth] = useState(null);
   const [editEvent, setEditEvent] = useState(null);
   const [showCatModal, setShowCatModal] = useState(false);
   const [showNameModal, setShowNameModal] = useState(false);
   const [showNewClock, setShowNewClock] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [filterCat, setFilterCat] = useState(null);
+  const [toast, setToast] = useState(null);
+
+  // Show toast for shared clocks
+  useEffect(() => {
+    if (initData?.fromShare) {
+      setToast("Jaettu vuosikello avattu! Muutokset tallentuvat selaimeesi.");
+      setTimeout(() => setToast(null), 4000);
+      // Clean URL
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
+
+  // Auto-save to localStorage
+  useEffect(() => {
+    if (clocks.length > 0) saveToStorage(clocks);
+  }, [clocks]);
 
   const clock = clocks.find(c => c.id === activeClockId) || clocks[0];
-  const filteredEvents = filterCat ? clock.events.filter(e => e.categoryId === filterCat) : clock.events;
+  const filteredEvents = clock ? (filterCat ? clock.events.filter(e => e.categoryId === filterCat) : clock.events) : [];
 
   const updateClock = useCallback((updates) => {
     setClocks(prev => prev.map(c => c.id === activeClockId ? { ...c, ...updates } : c));
   }, [activeClockId]);
+
+  const handleOnboardingComplete = (newClocks) => {
+    setClocks(newClocks);
+    setActiveClockId(newClocks[0].id);
+    setShowOnboarding(false);
+  };
 
   const addClock = (name) => {
     const newId = uid();
@@ -561,24 +1079,38 @@ function VuosikelloApp() {
   };
   const deleteEvent = (id) => updateClock({ events: clock.events.filter(e => e.id !== id) });
 
-  const exportData = () => {
-    const blob = new Blob([JSON.stringify(clocks, null, 2)], { type: "application/json" });
-    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "vuosikellot.json"; a.click();
-  };
   const importData = () => {
     const input = document.createElement("input"); input.type = "file"; input.accept = ".json";
     input.onchange = (e) => {
       const f = e.target.files[0]; if (!f) return;
       const r = new FileReader();
-      r.onload = (ev) => { try { const d = JSON.parse(ev.target.result); if (Array.isArray(d) && d[0]?.events) { setClocks(d); setActiveClockId(d[0].id); } } catch {} };
+      r.onload = (ev) => {
+        try {
+          const d = JSON.parse(ev.target.result);
+          if (Array.isArray(d) && d[0]?.events) { setClocks(d); setActiveClockId(d[0].id); }
+        } catch {}
+      };
       r.readAsText(f);
     };
     input.click();
   };
 
+  const resetAll = () => {
+    if (confirm("Haluatko varmasti nollata kaiken? Kaikki vuosikellot poistetaan.")) {
+      localStorage.removeItem(STORAGE_KEY);
+      setClocks([]);
+      setShowOnboarding(true);
+    }
+  };
+
+  if (showOnboarding) {
+    return <OnboardingWizard onComplete={handleOnboardingComplete} />;
+  }
+
+  if (!clock) return null;
+
   return (
     <div style={{ minHeight: "100vh", background: "#f5f0e8", fontFamily: "'DM Sans', sans-serif", color: "#3d3528" }}>
-      {/* Header */}
       <header style={{
         padding: "14px 24px", borderBottom: "1px solid #e0d9cc",
         display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12,
@@ -593,19 +1125,19 @@ function VuosikelloApp() {
           }}>◎</div>
           <div>
             <h1 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>Vuosikello</h1>
-            <div style={{ fontSize: 11, color: "#8b7e6a" }}>Vuosisuunnittelun työkalu</div>
+            <div style={{ fontSize: 11, color: "#8b7e6a" }}>Tallennetaan automaattisesti</div>
           </div>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button onClick={() => setShowShareModal(true)} style={btnStyle("#5B5EA6")}>🔗 Jaa</button>
           <button onClick={importData} style={{ ...btnStyle("#e0d9cc"), color: "#6b5e4f" }}>📂 Tuo</button>
-          <button onClick={exportData} style={{ ...btnStyle("#e0d9cc"), color: "#6b5e4f" }}>💾 Vie</button>
           <button onClick={() => handlePrint(clock.name, filteredEvents, clock.categories)}
             style={{ ...btnStyle("#e0d9cc"), color: "#6b5e4f" }}>🖨 Tulosta</button>
+          <button onClick={resetAll} style={{ ...btnStyle("#e0d9cc"), color: "#D4546A", fontSize: 11, padding: "6px 10px" }}>Nollaa</button>
         </div>
       </header>
 
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "20px 16px" }}>
-        {/* Clock tabs */}
         <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
           {clocks.map(c => (
             <div key={c.id} style={{ display: "flex" }}>
@@ -633,11 +1165,10 @@ function VuosikelloApp() {
             style={{ ...btnStyle("#fff"), color: "#8b7e6a", border: "2px dashed #d5cec0" }}>+ Uusi</button>
         </div>
 
-        {/* Toolbar */}
         <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
             <div style={{ display: "flex", background: "#fff", borderRadius: 8, overflow: "hidden", border: "1px solid #e0d9cc" }}>
-              {[["circular", "◎ Kello"], ["timeline", "═ Aikajana"]].map(([v, label]) => (
+              {[["circular", "◎ Kello"], ["timeline", "═ Taulukko"], ["visual", "⏐ Aikajana"]].map(([v, label]) => (
                 <button key={v} onClick={() => setViewMode(v)} style={{
                   padding: "6px 14px", border: "none", fontSize: 12, fontWeight: 700,
                   background: viewMode === v ? "#5B5EA6" : "#fff",
@@ -671,13 +1202,16 @@ function VuosikelloApp() {
           </div>
         </div>
 
-        {/* Main view */}
         <div style={{ display: "flex", justifyContent: "center" }}>
           {viewMode === "circular" ? (
             <CircularClock events={filteredEvents} categories={clock.categories}
               onMonthClick={(m) => setSelectedMonth(selectedMonth === m ? null : m)}
               onEventClick={(ev) => setEditEvent(ev)}
               clockTitle={clock.name} selectedMonth={selectedMonth} />
+          ) : viewMode === "visual" ? (
+            <VisualTimeline events={filteredEvents} categories={clock.categories}
+              onEventClick={(ev) => setEditEvent(ev)}
+              clockTitle={clock.name} />
           ) : (
             <div style={{ width: "100%" }}>
               <TimelineView events={filteredEvents} categories={clock.categories}
@@ -694,7 +1228,6 @@ function VuosikelloApp() {
         )}
       </div>
 
-      {/* Modals */}
       {editEvent && <EventModal event={editEvent.id ? editEvent : null} month={editEvent.month}
         categories={clock.categories} onSave={saveEvent} onCancel={() => setEditEvent(null)} />}
       {showCatModal && <CategoryModal categories={clock.categories}
@@ -705,6 +1238,7 @@ function VuosikelloApp() {
         onCancel={() => setShowNameModal(false)} />}
       {showNewClock && <NameModal currentName="" title="Uusi vuosikello"
         onSave={addClock} onCancel={() => setShowNewClock(false)} />}
+      {showShareModal && <ShareModal clock={clock} onClose={() => setShowShareModal(false)} />}
       {confirmDelete && (
         <div style={overlay} onClick={() => setConfirmDelete(null)}>
           <div onClick={e => e.stopPropagation()} style={{ ...modalBox, maxWidth: 380 }}>
@@ -719,6 +1253,7 @@ function VuosikelloApp() {
           </div>
         </div>
       )}
+      {toast && <div className="toast">{toast}</div>}
     </div>
   );
 }
