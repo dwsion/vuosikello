@@ -737,11 +737,27 @@ function App(){
           <button onClick={()=>setShowSett(true)} style={{fontSize:8,padding:"3px 8px",borderRadius:4,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>⚙️</button>
           <button onClick={()=>setEditEv({month:selM??new Date().getMonth()})} style={{fontSize:8,padding:"3px 10px",borderRadius:4,border:"none",background:"#5B5EA6",color:"#fff",fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>+ Tapahtuma</button>
         </div>
-        {view==="clock"&&<CircularClock events={fEv} categories={clock.categories.filter(c=>c.visible)} onMonthClick={m=>setSelM(selM===m?null:m)} onEventClick={ev=>setEditEv(ev)} clockTitle={clock.name} selectedMonth={selM} settings={clock.settings||DS} theme={th} holidays={holidays} showDayRing={dayRing}/>}
+
+        {/* Clock + side panel layout */}
+        {view==="clock"&&(
+          <div style={{display:"flex",gap:12,alignItems:"flex-start"}}>
+            <div style={{flex:"1 1 auto",minWidth:0}}>
+              <CircularClock events={fEv} categories={clock.categories.filter(c=>c.visible)} onMonthClick={m=>setSelM(selM===m?null:m)} onEventClick={ev=>setEditEv(ev)} clockTitle={clock.name} selectedMonth={selM} settings={clock.settings||DS} theme={th} holidays={holidays} showDayRing={dayRing}/>
+            </div>
+            {selM!==null&&(
+              <div style={{width:300,flexShrink:0,overflowY:"auto",maxHeight:"calc(100vh - 100px)"}}>
+                <MonthPanel month={selM} events={fEv} categories={clock.categories} holidays={holidays} onAdd={m=>setEditEv({month:m})} onEdit={ev=>setEditEv(ev)} onDelete={id=>upd({events:clock.events.filter(e=>e.id!==id)})} onClose={()=>setSelM(null)} theme={th}/>
+              </div>
+            )}
+          </div>
+        )}
+
         {view==="roadmap"&&<RoadmapView events={fEv} categories={clock.categories.filter(c=>c.visible)} onEventClick={ev=>setEditEv(ev)} clockTitle={clock.name} theme={th}/>}
         {view==="timeline"&&<TimelineView events={fEv} categories={clock.categories.filter(c=>c.visible)} onEventClick={ev=>setEditEv(ev)} clockTitle={clock.name} theme={th}/>}
         {view==="list"&&<ListView events={fEv} categories={clock.categories} onMonthClick={m=>setSelM(selM===m?null:m)} onEventClick={ev=>setEditEv(ev)} theme={th}/>}
-        {selM!==null&&view!=="timeline"&&view!=="roadmap"&&<MonthPanel month={selM} events={fEv} categories={clock.categories} holidays={holidays} onAdd={m=>setEditEv({month:m})} onEdit={ev=>setEditEv(ev)} onDelete={id=>upd({events:clock.events.filter(e=>e.id!==id)})} onClose={()=>setSelM(null)} theme={th}/>}
+
+        {/* MonthPanel for non-clock views stays below */}
+        {selM!==null&&view!=="clock"&&view!=="timeline"&&view!=="roadmap"&&<MonthPanel month={selM} events={fEv} categories={clock.categories} holidays={holidays} onAdd={m=>setEditEv({month:m})} onEdit={ev=>setEditEv(ev)} onDelete={id=>upd({events:clock.events.filter(e=>e.id!==id)})} onClose={()=>setSelM(null)} theme={th}/>}
       </div>
     </div>
     {editEv&&<EventModal event={editEv.id?editEv:null} month={editEv.month} categories={clock.categories} onSave={saveEv} onCancel={()=>setEditEv(null)} theme={th}/>}
