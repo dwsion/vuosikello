@@ -10,17 +10,19 @@
 <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
 <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.5.0/lz-string.min.js"></script>
 <style>
-*{box-sizing:border-box;margin:0;padding:0}body{font-family:'DM Sans',sans-serif;overflow-x:hidden}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;overflow-x:hidden}
 ::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#c4c9d4;border-radius:4px}
 button{font-family:inherit;cursor:pointer;transition:all .15s}button:hover{filter:brightness(1.06)}
 input:focus,textarea:focus,select:focus{outline:none}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 @keyframes slideIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1a2e;color:#fff;padding:12px 24px;border-radius:10px;font-size:13px;font-weight:600;z-index:2000;animation:slideIn .3s;box-shadow:0 8px 24px rgba(0,0,0,.25)}
-.toggle{position:relative;width:36px;height:20px;border-radius:10px;cursor:pointer;transition:background .2s;border:none;padding:0}
+.toggle{position:relative;width:36px;height:20px;border-radius:10px;cursor:pointer;transition:background .2s;border:none;padding:0;flex-shrink:0}
 .toggle::after{content:'';position:absolute;width:16px;height:16px;border-radius:50%;background:#fff;top:2px;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
 .toggle.on{background:#5B5EA6}.toggle.on::after{left:18px}
 .toggle.off{background:#cbd5e1}.toggle.off::after{left:2px}
+svg text{-webkit-user-select:none;user-select:none}
 </style>
 </head>
 <body>
@@ -29,9 +31,10 @@ input:focus,textarea:focus,select:focus{outline:none}
 const{useState,useRef,useCallback,useMemo,useEffect}=React;
 const MF=["Tammikuu","Helmikuu","Maaliskuu","Huhtikuu","Toukokuu","Kesäkuu","Heinäkuu","Elokuu","Syyskuu","Lokakuu","Marraskuu","Joulukuu"];
 const MS=["Tammi","Helmi","Maalis","Huhti","Touko","Kesä","Heinä","Elo","Syys","Loka","Marras","Joulu"];
-const DAYS_IN_MONTH=[31,28,31,30,31,30,31,31,30,31,30,31]; // approx
+const DIM=[31,28,31,30,31,30,31,31,30,31,30,31];
+const TOTAL_DAYS=365;
+const WKDAYS=["SU","MA","TI","KE","TO","PE","LA"];
 
-// Tags
 const TAGS=[
   {id:"critical",name:"Kriittinen",color:"#E8453C",icon:"🔴"},
   {id:"important",name:"Tärkeä",color:"#F59E0B",icon:"🟡"},
@@ -43,71 +46,114 @@ const TAGS=[
   {id:"deadline",name:"Deadline",color:"#DC2626",icon:"⏰"},
 ];
 
-// Finnish holidays (fixed dates + Easter-based approximations)
 const FI_HOLIDAYS=[
   {month:0,day:1,name:"Uudenvuodenpäivä"},{month:0,day:6,name:"Loppiainen"},
-  {month:4,day:1,name:"Vappu"},{month:5,day:20,name:"Juhannusaatto*"},
+  {month:4,day:1,name:"Vappu"},{month:5,day:20,name:"Juhannusaatto"},
   {month:11,day:6,name:"Itsenäisyyspäivä"},{month:11,day:24,name:"Jouluaatto"},
   {month:11,day:25,name:"Joulupäivä"},{month:11,day:26,name:"Tapaninpäivä"},
-  {month:3,day:18,name:"Pitkäperjantai*"},{month:3,day:21,name:"Pääsiäinen*"},
-  {month:4,day:29,name:"Helatorstai*"},{month:10,day:1,name:"Pyhäinpäivä*"},
+  {month:3,day:18,name:"Pitkäperjantai"},{month:3,day:21,name:"Pääsiäinen"},
+  {month:4,day:9,name:"Äitienpäivä"},{month:10,day:14,name:"Isänpäivä"},
 ];
 
-const BG_COLORS=[
-  {id:"light",name:"Vaalea",bg:"#f0f2f5",text:"#1a1a2e",card:"#fff",border:"#e2e8f0",muted:"#64748b",sub:"#94a3b8",cardAlt:"#f8fafc"},
-  {id:"warm",name:"Lämmin",bg:"#faf5ef",text:"#2d1f0e",card:"#fff",border:"#e8dfd4",muted:"#8b7e6a",sub:"#a89880",cardAlt:"#fdfaf5"},
-  {id:"cool",name:"Viileä",bg:"#eef1f6",text:"#1a2035",card:"#fff",border:"#d8dde8",muted:"#5a6580",sub:"#8892a8",cardAlt:"#f5f7fb"},
-  {id:"dark",name:"Tumma",bg:"#13151a",text:"#e2e8f0",card:"#1e2028",border:"#2a2d38",muted:"#8892a8",sub:"#64748b",cardAlt:"#252830"},
+const BG=[
+  {id:"light",name:"Vaalea",bg:"#f0f2f5",text:"#1a1a2e",card:"#fff",border:"#e2e8f0",muted:"#64748b",sub:"#94a3b8",alt:"#f8fafc"},
+  {id:"warm",name:"Lämmin",bg:"#faf5ef",text:"#2d1f0e",card:"#fff",border:"#e8dfd4",muted:"#8b7e6a",sub:"#a89880",alt:"#fdfaf5"},
+  {id:"cool",name:"Viileä",bg:"#eef1f6",text:"#1a2035",card:"#fff",border:"#d8dde8",muted:"#5a6580",sub:"#8892a8",alt:"#f5f7fb"},
+  {id:"dark",name:"Tumma",bg:"#0f1117",text:"#e2e8f0",card:"#1a1d25",border:"#2a2d38",muted:"#8892a8",sub:"#64748b",alt:"#22252e"},
 ];
 
 const TEMPLATES=[
-  {id:"empty",name:"Tyhjä vuosikello",desc:"Aloita puhtaalta pöydältä",icon:"📝",
-    categories:[{id:"c1",name:"Yleinen",color:"#A8C5DA",visible:true}],events:[]},
-  {id:"business",name:"Yrityksen vuosikello",desc:"Hallinto, talous, HR ja viestintä",icon:"🏢",
+  {id:"empty",name:"Tyhjä",desc:"Aloita puhtaalta pöydältä",icon:"📝",categories:[{id:"c1",name:"Yleinen",color:"#A8C5DA",visible:true}],events:[]},
+  {id:"business",name:"Yritys",desc:"Hallinto, talous, HR, viestintä",icon:"🏢",
     categories:[{id:"c1",name:"Hallinto",color:"#A8C5DA",visible:true},{id:"c2",name:"Talous",color:"#B5D8C7",visible:true},{id:"c3",name:"Henkilöstö",color:"#E8B4B8",visible:true},{id:"c4",name:"Viestintä",color:"#F5D5A0",visible:true}],
-    events:[{id:"e1",month:0,title:"Vuosisuunnittelu",desc:"",categoryId:"c1",eventColor:null,tags:["planning"]},{id:"e2",month:0,title:"Tilinpäätös",desc:"",categoryId:"c2",eventColor:"#E8453C",tags:["critical","deadline"]},{id:"e3",month:1,title:"Kehityskeskustelut",desc:"",categoryId:"c3",eventColor:null,tags:[]},{id:"e4",month:2,title:"Q1-raportti",desc:"",categoryId:"c2",eventColor:"#F59E0B",tags:["important"]},{id:"e5",month:5,title:"Puolivuotiskatsaus",desc:"",categoryId:"c1",eventColor:"#F59E0B",tags:["important"]},{id:"e6",month:8,title:"Q3-raportti",desc:"",categoryId:"c2",eventColor:null,tags:[]},{id:"e7",month:9,title:"Budjetointi",desc:"",categoryId:"c2",eventColor:"#E8453C",tags:["critical"]},{id:"e8",month:11,title:"Vuosikatsaus",desc:"",categoryId:"c4",eventColor:"#22C55E",tags:["event"]},{id:"e9",month:11,title:"Pikkujoulut",desc:"",categoryId:"c3",eventColor:"#EC4899",tags:["event"]}]},
-  {id:"roadmap",name:"Tuote-roadmap",desc:"Tuotekehityksen kvartaalit",icon:"🗺️",
+    events:[{id:"e1",month:0,title:"Vuosisuunnittelu",desc:"",categoryId:"c1",eventColor:null,tags:["planning"],startDay:null,endDay:null},{id:"e2",month:0,title:"Tilinpäätös",desc:"",categoryId:"c2",eventColor:"#E8453C",tags:["critical","deadline"],startDay:15,endDay:31},{id:"e3",month:1,title:"Kehityskeskustelut",desc:"",categoryId:"c3",eventColor:null,tags:[],startDay:null,endDay:null},{id:"e4",month:2,title:"Q1-raportti",desc:"",categoryId:"c2",eventColor:"#F59E0B",tags:["important"],startDay:20,endDay:31},{id:"e5",month:5,title:"Puolivuotiskatsaus",desc:"",categoryId:"c1",eventColor:"#F59E0B",tags:["important"],startDay:null,endDay:null},{id:"e6",month:8,title:"Q3-raportti",desc:"",categoryId:"c2",eventColor:null,tags:[],startDay:null,endDay:null},{id:"e7",month:9,title:"Budjetointi",desc:"",categoryId:"c2",eventColor:"#E8453C",tags:["critical"],startDay:1,endDay:15},{id:"e8",month:11,title:"Vuosikatsaus",desc:"",categoryId:"c4",eventColor:"#22C55E",tags:["event"],startDay:null,endDay:null},{id:"e9",month:11,title:"Pikkujoulut",desc:"",categoryId:"c3",eventColor:"#EC4899",tags:["event"],startDay:10,endDay:15}]},
+  {id:"roadmap",name:"Roadmap",desc:"Tuotekehityksen vaiheet",icon:"🗺️",
     categories:[{id:"r1",name:"Tutkimus",color:"#B8B5D8",visible:true},{id:"r2",name:"Kehitys",color:"#A8C5DA",visible:true},{id:"r3",name:"Testaus",color:"#F5D5A0",visible:true},{id:"r4",name:"Julkaisu",color:"#B5D8C7",visible:true}],
-    events:[{id:"r1e",month:0,title:"Käyttäjätutkimus",desc:"",categoryId:"r1",eventColor:null,tags:["planning"]},{id:"r2e",month:1,title:"MVP-suunnittelu",desc:"",categoryId:"r1",eventColor:"#8B5CF6",tags:["planning"]},{id:"r3e",month:2,title:"Sprint 1",desc:"",categoryId:"r2",eventColor:null,tags:[]},{id:"r4e",month:3,title:"Sprint 2",desc:"",categoryId:"r2",eventColor:null,tags:[]},{id:"r5e",month:4,title:"Alpha-testaus",desc:"",categoryId:"r3",eventColor:"#F59E0B",tags:["important"]},{id:"r6e",month:5,title:"Beta-julkaisu",desc:"",categoryId:"r4",eventColor:"#22C55E",tags:["deadline"]},{id:"r7e",month:6,title:"Sprint 3",desc:"",categoryId:"r2",eventColor:null,tags:[]},{id:"r8e",month:8,title:"V2 suunnittelu",desc:"",categoryId:"r1",eventColor:"#8B5CF6",tags:["planning"]},{id:"r9e",month:10,title:"V2 testaus",desc:"",categoryId:"r3",eventColor:null,tags:[]},{id:"r10e",month:11,title:"V2 julkaisu",desc:"",categoryId:"r4",eventColor:"#E8453C",tags:["critical","deadline"]}]},
-  {id:"hr",name:"HR-vuosikello",desc:"Henkilöstöhallinnon prosessit",icon:"👥",
+    events:[{id:"r1e",month:0,title:"Käyttäjätutkimus",desc:"",categoryId:"r1",eventColor:null,tags:["planning"],startDay:null,endDay:null},{id:"r2e",month:2,title:"Sprint 1",desc:"",categoryId:"r2",eventColor:null,tags:[],startDay:1,endDay:14},{id:"r3e",month:2,title:"Sprint 2",desc:"",categoryId:"r2",eventColor:null,tags:[],startDay:15,endDay:31},{id:"r4e",month:4,title:"Alpha",desc:"",categoryId:"r3",eventColor:"#F59E0B",tags:["important"],startDay:null,endDay:null},{id:"r5e",month:5,title:"Beta",desc:"",categoryId:"r4",eventColor:"#22C55E",tags:["deadline"],startDay:15,endDay:30},{id:"r6e",month:11,title:"V2 julkaisu",desc:"",categoryId:"r4",eventColor:"#E8453C",tags:["critical","deadline"],startDay:1,endDay:10}]},
+  {id:"hr",name:"HR",desc:"Henkilöstöhallinto",icon:"👥",
     categories:[{id:"h1",name:"Rekrytointi",color:"#A8C5DA",visible:true},{id:"h2",name:"Osaaminen",color:"#B8B5D8",visible:true},{id:"h3",name:"Hyvinvointi",color:"#B5D8C7",visible:true},{id:"h4",name:"Palkitseminen",color:"#F5D5A0",visible:true}],
-    events:[{id:"h1e",month:0,title:"Kehityskeskustelut",desc:"",categoryId:"h2",eventColor:null,tags:[]},{id:"h2e",month:2,title:"Kevätrekry",desc:"",categoryId:"h1",eventColor:null,tags:[]},{id:"h3e",month:3,title:"Hyvinvointikysely",desc:"",categoryId:"h3",eventColor:"#F59E0B",tags:["important"]},{id:"h4e",month:5,title:"Bonus H1",desc:"",categoryId:"h4",eventColor:"#22C55E",tags:[]},{id:"h5e",month:10,title:"Palkka-arviointi",desc:"",categoryId:"h4",eventColor:"#E8453C",tags:["critical"]}]},
-  {id:"education",name:"Koulun lukuvuosi",desc:"Lukukaudet ja tapahtumat",icon:"📚",
+    events:[{id:"h1e",month:0,title:"Kehityskeskustelut",desc:"",categoryId:"h2",eventColor:null,tags:[],startDay:null,endDay:null},{id:"h2e",month:3,title:"Hyvinvointikysely",desc:"",categoryId:"h3",eventColor:"#F59E0B",tags:["important"],startDay:null,endDay:null},{id:"h3e",month:5,title:"Bonus H1",desc:"",categoryId:"h4",eventColor:"#22C55E",tags:[],startDay:null,endDay:null},{id:"h4e",month:10,title:"Palkka-arviointi",desc:"",categoryId:"h4",eventColor:"#E8453C",tags:["critical"],startDay:null,endDay:null}]},
+  {id:"education",name:"Koulu",desc:"Lukuvuoden tapahtumat",icon:"📚",
     categories:[{id:"k1",name:"Opetus",color:"#A8C5DA",visible:true},{id:"k2",name:"Arviointi",color:"#E8B4B8",visible:true},{id:"k3",name:"Tapahtumat",color:"#F5D5A0",visible:true},{id:"k4",name:"Lomat",color:"#B5D8C7",visible:true}],
-    events:[{id:"k1e",month:0,title:"Kevätlukukausi",desc:"",categoryId:"k1",eventColor:null,tags:[]},{id:"k2e",month:1,title:"Hiihtoloma",desc:"",categoryId:"k4",eventColor:"#3B82F6",tags:[]},{id:"k3e",month:4,title:"Kevätjuhla",desc:"",categoryId:"k3",eventColor:"#EC4899",tags:["event"]},{id:"k4e",month:5,title:"Kesäloma",desc:"",categoryId:"k4",eventColor:"#22C55E",tags:[]},{id:"k5e",month:7,title:"Syyslukukausi",desc:"",categoryId:"k1",eventColor:null,tags:[]},{id:"k6e",month:11,title:"Joululoma",desc:"",categoryId:"k4",eventColor:"#22C55E",tags:[]}]},
-  {id:"marketing",name:"Markkinoinnin vuosikello",desc:"Kampanjat ja sisällöt",icon:"📣",
-    categories:[{id:"m1",name:"Kampanjat",color:"#E8B4B8",visible:true},{id:"m2",name:"Sisältö",color:"#A8C5DA",visible:true},{id:"m3",name:"Tapahtumat",color:"#F5D5A0",visible:true},{id:"m4",name:"Analytiikka",color:"#B5D8C7",visible:true}],events:[]},
+    events:[{id:"k1e",month:0,title:"Kevätlukukausi",desc:"",categoryId:"k1",eventColor:null,tags:[],startDay:null,endDay:null},{id:"k2e",month:1,title:"Hiihtoloma",desc:"",categoryId:"k4",eventColor:"#3B82F6",tags:[],startDay:17,endDay:21},{id:"k3e",month:5,title:"Kesäloma",desc:"",categoryId:"k4",eventColor:"#22C55E",tags:[],startDay:1,endDay:30},{id:"k4e",month:11,title:"Joululoma",desc:"",categoryId:"k4",eventColor:"#22C55E",tags:[],startDay:20,endDay:31}]},
+  {id:"marketing",name:"Markkinointi",desc:"Kampanjat ja sisällöt",icon:"📣",
+    categories:[{id:"m1",name:"Kampanjat",color:"#E8B4B8",visible:true},{id:"m2",name:"Sisältö",color:"#A8C5DA",visible:true},{id:"m3",name:"Tapahtumat",color:"#F5D5A0",visible:true}],events:[]},
 ];
 
 const uid=()=>"id_"+Math.random().toString(36).slice(2,10);
 const p2c=(cx,cy,r,d)=>{const rad=(d-90)*(Math.PI/180);return[cx+r*Math.cos(rad),cy+r*Math.sin(rad)]};
 const aP=(cx,cy,rO,rI,s,e)=>{const[a,b]=p2c(cx,cy,rO,s),[c,d]=p2c(cx,cy,rO,e),[f,g]=p2c(cx,cy,rI,e),[h,j]=p2c(cx,cy,rI,s),l=e-s>180?1:0;return`M${a},${b} A${rO},${rO} 0 ${l},1 ${c},${d} L${f},${g} A${rI},${rI} 0 ${l},0 ${h},${j} Z`};
 
-const SK="vuosikello_v6";
+const SK="vuosikello_v7";
 const sv=d=>{try{localStorage.setItem(SK,JSON.stringify(d))}catch{}};
 const ld=()=>{try{const r=localStorage.getItem(SK);if(r){const d=JSON.parse(r);if(Array.isArray(d)&&d.length)return d}}catch{};return null};
 const encS=c=>{try{return LZString.compressToEncodedURIComponent(JSON.stringify({name:c.name,events:c.events,categories:c.categories,settings:c.settings}))}catch{return null}};
 const decS=s=>{try{const j=LZString.decompressFromEncodedURIComponent(s);if(j){const d=JSON.parse(j);if(d.name)return d}}catch{};return null};
 
-const DS={revolving:true,clockwise:true,startMonth:0,theme:"light",showDates:true,showHolidays:true,logo:null};
-const useTh=id=>BG_COLORS.find(t=>t.id===id)||BG_COLORS[0];
+const DS={revolving:true,clockwise:true,startMonth:0,theme:"light",showDates:false,showHolidays:true,logo:null};
+const useTh=id=>BG.find(t=>t.id===id)||BG[0];
+const Toggle=({value,onChange,label,desc})=>(<div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}><button className={`toggle ${value?"on":"off"}`} onClick={()=>onChange(!value)}/><div><div style={{fontSize:11,fontWeight:600}}>{label}</div>{desc&&<div style={{fontSize:9,color:"#94a3b8"}}>{desc}</div>}</div></div>);
 
-const lbl={display:"block",color:"#64748b",fontSize:11,fontWeight:700,marginBottom:4,letterSpacing:".04em"};
-const inp={width:"100%",padding:"9px 12px",borderRadius:8,border:"1.5px solid #e2e8f0",background:"#fff",color:"#1a1a2e",fontSize:13,marginBottom:12,fontFamily:"inherit",outline:"none"};
-const makeOvr=th=>({position:"fixed",inset:0,background:"rgba(0,0,0,.4)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:16,backdropFilter:"blur(4px)"});
-const makeMod=th=>({background:th.card,borderRadius:16,padding:24,width:"100%",maxWidth:500,maxHeight:"90vh",overflowY:"auto",boxShadow:"0 24px 48px rgba(0,0,0,.2)",color:th.text,border:`1px solid ${th.border}`});
+/* ═══ Month degree calculator - handles both normal and precise mode ═══ */
+function useMonthGeometry(settings){
+  const s=settings||DS;
+  const cm=new Date().getMonth();
+  const rOff=s.revolving?-(cm*30+15):-(s.startMonth*30);
+  const dir=s.clockwise?1:-1;
 
-/* ═══ Toggle Component ═══ */
-function Toggle({value,onChange,label}){
-  return(<div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-    <button className={`toggle ${value?"on":"off"}`} onClick={()=>onChange(!value)}/>
-    <span style={{fontSize:12,fontWeight:600}}>{label}</span>
-  </div>);
+  // Cumulative day offsets for precise mode
+  const cumDays=useMemo(()=>{const a=[0];for(let i=0;i<12;i++)a.push(a[i]+DIM[i]);return a},[]);
+
+  // Month start degree
+  const monthStart=useCallback((mi)=>{
+    if(s.preciseMode){
+      const dayDeg=cumDays[mi]/TOTAL_DAYS*360;
+      return dayDeg*dir+rOff;
+    }
+    return mi*30*dir+rOff;
+  },[s.preciseMode,s.clockwise,s.revolving,rOff,dir,cumDays]);
+
+  // Month end degree
+  const monthEnd=useCallback((mi)=>{
+    if(s.preciseMode){
+      const dayDeg=cumDays[mi+1]/TOTAL_DAYS*360;
+      return dayDeg*dir+rOff;
+    }
+    return (mi+1)*30*dir+rOff;
+  },[s.preciseMode,s.clockwise,s.revolving,rOff,dir,cumDays]);
+
+  // Month span in degrees
+  const monthSpan=useCallback((mi)=>{
+    if(s.preciseMode)return DIM[mi]/TOTAL_DAYS*360;
+    return 30;
+  },[s.preciseMode]);
+
+  // Day position within a month (for precise event placement)
+  const dayDeg=useCallback((mi,day)=>{
+    const ms=monthStart(mi);
+    const span=monthSpan(mi);
+    const frac=(day-1)/DIM[mi];
+    return ms+frac*span*dir;
+  },[monthStart,monthSpan,dir]);
+
+  // Week lines within a month
+  const weekDegs=useCallback((mi)=>{
+    const weeks=[];
+    const span=monthSpan(mi);
+    const ms=monthStart(mi);
+    for(let d=8;d<=DIM[mi];d+=7){
+      const frac=(d-1)/DIM[mi];
+      weeks.push({deg:ms+frac*span*dir,label:`${d}`});
+    }
+    return weeks;
+  },[monthStart,monthSpan,dir]);
+
+  return{monthStart,monthEnd,monthSpan,dayDeg,weekDegs,dir,cm};
 }
 
-/* ═══ Mini Clock Preview ═══ */
+/* ═══ Mini Clock ═══ */
 function MiniClock({categories,events,size:sz}){
-  const s=sz||100,cx=s/2,cy=s/2,iR=s*.16,rS=s*.22,rG=1;
+  const s=sz||100,cx=s/2,cy=s/2,iR=s*.15,rS=s*.22,rG=1;
   const rW=(s/2-rS-3)/Math.max(categories.length,1)-rG;
   return(<svg viewBox={`0 0 ${s} ${s}`} width={sz} height={sz}>
     {categories.map((cat,ri)=>{const rO=rS+(ri+1)*(rW+rG)-rG,rI=rS+ri*(rW+rG);
@@ -125,449 +171,435 @@ function MiniClock({categories,events,size:sz}){
 
 /* ═══ Onboarding ═══ */
 function Onboarding({onComplete}){
-  const[view,setView]=useState("gallery");
-  const[sel,setSel]=useState(null);
-  const[name,setName]=useState("");
-  const[sett,setSett]=useState({...DS});
-
+  const[view,setView]=useState("gallery");const[sel,setSel]=useState(null);const[name,setName]=useState("");const[sett,setSett]=useState({...DS});
   const go=t=>{setSel(t);setName(t.id==="empty"?"":t.name);setView("setup")};
   const finish=()=>{
     const cats=sel.categories.map(c=>({...c,id:uid(),visible:true}));
-    const evts=sel.events.map(e=>{const oi=sel.categories.findIndex(c=>c.id===e.categoryId);return{...e,id:uid(),desc:e.desc||"",categoryId:cats[oi>=0?oi:0].id,tags:e.tags||[]}});
+    const evts=sel.events.map(e=>{const oi=sel.categories.findIndex(c=>c.id===e.categoryId);return{...e,id:uid(),desc:e.desc||"",tags:e.tags||[],startDay:e.startDay||null,endDay:e.endDay||null,categoryId:cats[oi>=0?oi:0].id}});
     onComplete([{id:uid(),name:name.trim()||"Vuosikello",categories:cats,events:evts,settings:sett}]);
   };
-
   if(view==="gallery")return(
-    <div style={{minHeight:"100vh",background:"#f0f2f5",padding:"40px 20px"}}>
-      <div style={{maxWidth:960,margin:"0 auto"}}>
-        <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:36}}>
-          <div style={{width:48,height:48,borderRadius:14,background:"linear-gradient(135deg,#5B5EA6,#3A8FCD)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:24,fontWeight:800}}>◎</div>
-          <div><h1 style={{fontSize:26,fontWeight:800}}>Vuosikello</h1><div style={{fontSize:14,color:"#94a3b8"}}>Valitse pohja tai aloita tyhjästä</div></div>
-        </div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:14}}>
-          {TEMPLATES.map(t=>(
-            <button key={t.id} onClick={()=>go(t)} style={{padding:"18px 14px",borderRadius:14,border:"1.5px solid #e2e8f0",background:"#fff",cursor:"pointer",textAlign:"center",fontFamily:"inherit",transition:"all .2s",display:"flex",flexDirection:"column",alignItems:"center"}}
-              onMouseEnter={e=>{e.currentTarget.style.borderColor="#5B5EA6";e.currentTarget.style.boxShadow="0 4px 20px rgba(91,94,166,.12)"}}
-              onMouseLeave={e=>{e.currentTarget.style.borderColor="#e2e8f0";e.currentTarget.style.boxShadow="none"}}>
-              <MiniClock categories={t.categories} events={t.events} size={100}/>
-              <div style={{fontWeight:800,fontSize:13,marginTop:10}}>{t.name}</div>
-              <div style={{fontSize:10,color:"#94a3b8",marginTop:3}}>{t.desc}</div>
-              <div style={{fontSize:9,color:"#cbd5e1",marginTop:6}}>{t.categories.length} kehää · {t.events.length} tapahtumaa</div>
-            </button>
-          ))}
-        </div>
+    <div style={{minHeight:"100vh",background:"#f0f2f5",padding:"40px 20px"}}><div style={{maxWidth:960,margin:"0 auto"}}>
+      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:36}}>
+        <div style={{width:48,height:48,borderRadius:14,background:"linear-gradient(135deg,#5B5EA6,#3A8FCD)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:24,fontWeight:800}}>◎</div>
+        <div><h1 style={{fontSize:26,fontWeight:800}}>Vuosikello</h1><div style={{fontSize:14,color:"#94a3b8"}}>Valitse pohja tai aloita tyhjästä</div></div></div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:12}}>
+        {TEMPLATES.map(t=><button key={t.id} onClick={()=>go(t)} style={{padding:"16px 12px",borderRadius:14,border:"1.5px solid #e2e8f0",background:"#fff",cursor:"pointer",textAlign:"center",fontFamily:"inherit",transition:"all .2s",display:"flex",flexDirection:"column",alignItems:"center"}}
+          onMouseEnter={e=>{e.currentTarget.style.borderColor="#5B5EA6";e.currentTarget.style.boxShadow="0 4px 20px rgba(91,94,166,.12)"}}
+          onMouseLeave={e=>{e.currentTarget.style.borderColor="#e2e8f0";e.currentTarget.style.boxShadow="none"}}>
+          <MiniClock categories={t.categories} events={t.events} size={90}/>
+          <div style={{fontWeight:800,fontSize:12,marginTop:8}}>{t.name}</div>
+          <div style={{fontSize:9,color:"#94a3b8",marginTop:2}}>{t.desc}</div>
+        </button>)}
       </div>
-    </div>
-  );
-
+    </div></div>);
   return(<div style={{minHeight:"100vh",background:"#f0f2f5",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-    <div style={{background:"#fff",borderRadius:20,padding:"32px 28px",maxWidth:500,width:"100%",boxShadow:"0 4px 24px rgba(0,0,0,.06)",animation:"fadeIn .3s"}}>
-      <button onClick={()=>setView("gallery")} style={{background:"none",border:"none",color:"#5B5EA6",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",marginBottom:14,padding:0}}>← Takaisin</button>
-      <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:20}}>
-        <MiniClock categories={sel.categories} events={sel.events} size={70}/>
-        <div><h2 style={{fontSize:18,fontWeight:800,margin:0}}>{sel.name}</h2><div style={{fontSize:12,color:"#94a3b8"}}>{sel.desc}</div></div>
+    <div style={{background:"#fff",borderRadius:20,padding:"28px 24px",maxWidth:480,width:"100%",boxShadow:"0 4px 24px rgba(0,0,0,.06)",animation:"fadeIn .3s"}}>
+      <button onClick={()=>setView("gallery")} style={{background:"none",border:"none",color:"#5B5EA6",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",marginBottom:12,padding:0}}>← Takaisin</button>
+      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:18}}>
+        <MiniClock categories={sel.categories} events={sel.events} size={60}/>
+        <div><h2 style={{fontSize:17,fontWeight:800,margin:0}}>{sel.name}</h2><div style={{fontSize:11,color:"#94a3b8"}}>{sel.desc}</div></div></div>
+      <label style={{display:"block",color:"#64748b",fontSize:10,fontWeight:700,marginBottom:3}}>Nimi</label>
+      <input value={name} onChange={e=>setName(e.target.value)} placeholder="Nimi..." style={{width:"100%",padding:"10px 12px",borderRadius:8,border:"1.5px solid #e2e8f0",background:"#fff",fontSize:14,marginBottom:12,fontFamily:"inherit",outline:"none"}} autoFocus/>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
+        <div><label style={{fontSize:10,fontWeight:700,color:"#64748b",marginBottom:3,display:"block"}}>Tyyppi</label>
+          <div style={{display:"flex",borderRadius:7,overflow:"hidden",border:"1.5px solid #e2e8f0"}}>
+            {[{v:true,l:"Pyörivä"},{v:false,l:"Staattinen"}].map(o=><button key={String(o.v)} onClick={()=>setSett({...sett,revolving:o.v})} style={{flex:1,padding:"7px",border:"none",fontSize:10,fontWeight:700,fontFamily:"inherit",cursor:"pointer",background:sett.revolving===o.v?"#5B5EA6":"#f8fafc",color:sett.revolving===o.v?"#fff":"#64748b"}}>{o.l}</button>)}</div></div>
+        <div><label style={{fontSize:10,fontWeight:700,color:"#64748b",marginBottom:3,display:"block"}}>Suunta</label>
+          <div style={{display:"flex",borderRadius:7,overflow:"hidden",border:"1.5px solid #e2e8f0"}}>
+            {[{v:true,l:"↻"},{v:false,l:"↺"}].map(o=><button key={String(o.v)} onClick={()=>setSett({...sett,clockwise:o.v})} style={{flex:1,padding:"7px",border:"none",fontSize:12,fontWeight:700,fontFamily:"inherit",cursor:"pointer",background:sett.clockwise===o.v?"#5B5EA6":"#f8fafc",color:sett.clockwise===o.v?"#fff":"#64748b"}}>{o.l}</button>)}</div></div>
       </div>
-      <label style={lbl}>Nimi</label>
-      <input value={name} onChange={e=>setName(e.target.value)} placeholder="Vuosikellon nimi" style={{...inp,fontSize:15}} autoFocus/>
+      <Toggle value={sett.showHolidays} onChange={v=>setSett({...sett,showHolidays:v})} label="Juhlapyhät"/>
 
-      <label style={lbl}>Kellon tyyppi</label>
-      <div style={{display:"flex",marginBottom:12,borderRadius:8,overflow:"hidden",border:"1.5px solid #e2e8f0"}}>
-        {[{v:true,l:"Pyörivä"},{v:false,l:"Staattinen"}].map(o=><button key={String(o.v)} onClick={()=>setSett({...sett,revolving:o.v})} style={{flex:1,padding:"9px",border:"none",fontSize:12,fontWeight:700,fontFamily:"inherit",cursor:"pointer",background:sett.revolving===o.v?"#5B5EA6":"#f8fafc",color:sett.revolving===o.v?"#fff":"#64748b"}}>{o.l}</button>)}
-      </div>
-
-      <label style={lbl}>Suunta</label>
-      <div style={{display:"flex",marginBottom:12,borderRadius:8,overflow:"hidden",border:"1.5px solid #e2e8f0"}}>
-        {[{v:true,l:"Myötäpäivään ↻"},{v:false,l:"Vastapäivään ↺"}].map(o=><button key={String(o.v)} onClick={()=>setSett({...sett,clockwise:o.v})} style={{flex:1,padding:"9px",border:"none",fontSize:12,fontWeight:700,fontFamily:"inherit",cursor:"pointer",background:sett.clockwise===o.v?"#5B5EA6":"#f8fafc",color:sett.clockwise===o.v?"#fff":"#64748b"}}>{o.l}</button>)}
-      </div>
-
-      <Toggle value={sett.showDates} onChange={v=>setSett({...sett,showDates:v})} label="Päivämäärärengas (ulkokehä)"/>
-      <Toggle value={sett.showHolidays} onChange={v=>setSett({...sett,showHolidays:v})} label="Suomalaiset juhlapyhät"/>
-
-      <label style={{...lbl,marginTop:8}}>Teema</label>
-      <div style={{display:"flex",gap:5,marginBottom:16}}>
-        {BG_COLORS.map(t=><button key={t.id} onClick={()=>setSett({...sett,theme:t.id})} style={{flex:1,padding:"7px",borderRadius:8,border:sett.theme===t.id?"2px solid #5B5EA6":"2px solid #e2e8f0",background:t.bg,color:t.text,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{t.name}</button>)}
-      </div>
-
-      <button onClick={finish} style={{width:"100%",padding:"12px",borderRadius:10,border:"none",background:"#5B5EA6",color:"#fff",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Luo vuosikello →</button>
-    </div>
-  </div>);
+      <label style={{fontSize:10,fontWeight:700,color:"#64748b",marginBottom:3,marginTop:6,display:"block"}}>Teema</label>
+      <div style={{display:"flex",gap:4,marginBottom:14}}>
+        {BG.map(t=><button key={t.id} onClick={()=>setSett({...sett,theme:t.id})} style={{flex:1,padding:"6px",borderRadius:7,border:sett.theme===t.id?"2px solid #5B5EA6":"2px solid #e2e8f0",background:t.bg,color:t.text,fontSize:9,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{t.name}</button>)}</div>
+      <button onClick={finish} style={{width:"100%",padding:"11px",borderRadius:9,border:"none",background:"#5B5EA6",color:"#fff",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Luo vuosikello →</button>
+    </div></div>);
 }
 
-/* ═══ Circular Clock with all ring layers ═══ */
-function CircularClock({events,categories,onMonthClick,onEventClick,clockTitle,selectedMonth,settings,theme:th,holidays}){
+/* ═══ Circular Clock with Precise/Exploded Mode ═══ */
+
+/* ═══ Circular Clock ═══ */
+function CircularClock({events,categories,onMonthClick,onEventClick,clockTitle,selectedMonth,settings,theme:th,holidays,showDayRing}){
   const[hov,setHov]=useState(null);const[tip,setTip]=useState(null);const ref=useRef(null);
   const vc=categories.filter(c=>c.visible);
-  const s=settings||DS;
+  const s={...DS,...(settings||{})};
   const cm=new Date().getMonth();
   const rOff=s.revolving?-(cm*30+15):-(s.startMonth*30);
   const dir=s.clockwise?1:-1;
-  const mD=mi=>mi*30*dir+rOff;
+  const mS=mi=>mi*30*dir+rOff;
+  const mE=mi=>(mi+1)*30*dir+rOff;
 
-  // Ring layout calculation
-  const sz=820,cx=sz/2,cy=sz/2;
-  const centerR=s.logo?55:50;
-  const monthRingW=25;
-  const catLabelW=12; // thin label ring
-  const dataRingW=Math.min(48,(sz/2-centerR-monthRingW-10-(s.showDates?22:0))/Math.max(vc.length,1)-(catLabelW+3));
-  const dateRingW=s.showDates?18:0;
-
-  // Radii from inside out: center -> monthRing -> [catLabel+dataRing per category] -> dateRing
-  const monthRI=centerR+8;
-  const monthRO=monthRI+monthRingW;
-  let nextR=monthRO+3;
-  const rings=vc.map((cat,ri)=>{
-    const labelRI=nextR;const labelRO=labelRI+catLabelW;
-    const dataRI=labelRO+1;const dataRO=dataRI+dataRingW;
-    nextR=dataRO+3;
-    return{cat,ri,labelRI,labelRO,dataRI,dataRO};
-  });
-  const dateRI=nextR+2;const dateRO=dateRI+dateRingW;
-  const outerR=s.showDates?dateRO:nextR;
+  const sz=840,cx=sz/2,cy=sz/2;
+  const centerR=s.logo?52:48,monthRW=22,catLW=10;
+  const dayRingW=showDayRing?40:0;
+  const dataRW=Math.min(50,(sz/2-centerR-monthRW-14-dayRingW)/Math.max(vc.length,1)-(catLW+3));
+  const monthRI=centerR+6,monthRO=monthRI+monthRW;
+  let nR=monthRO+2;
+  const rings=vc.map((cat,ri)=>{const lRI=nR,lRO=lRI+catLW,dRI=lRO+1,dRO=dRI+dataRW;nR=dRO+2;return{cat,ri,lRI,lRO,dRI,dRO}});
+  const dayRI=nR+1,dayRO=dayRI+dayRingW;
+  const outerR=showDayRing?dayRO:nR;
 
   const cM=useMemo(()=>{const m={};vc.forEach((c,i)=>m[c.id]={...c,ri:i});return m},[vc]);
   const hMM=(e,ev)=>{if(!ref.current)return;const r=ref.current.getBoundingClientRect();setTip({x:e.clientX-r.left,y:e.clientY-r.top,ev})};
   const eRM=useMemo(()=>{const m={};events.forEach(ev=>{const c=cM[ev.categoryId];if(!c)return;const k=`${c.ri}-${ev.month}`;if(!m[k])m[k]=[];m[k].push(ev)});return m},[events,cM]);
 
+  // Build day ring data: 365 slices with weekday + date labels
+  const daySlices=useMemo(()=>{
+    if(!showDayRing)return[];
+    const yr=new Date().getFullYear();
+    const slices=[];
+    let totalDays=0;
+    for(let mi=0;mi<12;mi++)totalDays+=DIM[mi];
+    let dayIdx=0;
+    for(let mi=0;mi<12;mi++){
+      for(let d=1;d<=DIM[mi];d++){
+        const degPerDay=360/totalDays;
+        const startDeg=dayIdx*degPerDay;
+        const endDeg=(dayIdx+1)*degPerDay;
+        // Apply rotation and direction
+        const s1=startDeg*dir+rOff;
+        const e1=endDeg*dir+rOff;
+        const dt=new Date(yr,mi,d);
+        const wk=WKDAYS[dt.getDay()];
+        const isToday=mi===new Date().getMonth()&&d===new Date().getDate();
+        const isWeekend=dt.getDay()===0||dt.getDay()===6;
+        slices.push({mi,d,s:Math.min(s1,e1),e:Math.max(s1,e1),wk,isToday,isWeekend,label:`${wk} ${d}.${mi+1}.`});
+        dayIdx++;
+      }
+    }
+    return slices;
+  },[showDayRing,rOff,dir]);
+
   return(<div style={{position:"relative",width:"100%",maxWidth:sz,margin:"0 auto"}}>
     <svg ref={ref} viewBox={`0 0 ${sz} ${sz}`} style={{width:"100%",height:"auto",fontFamily:"'DM Sans',sans-serif"}} onMouseLeave={()=>setTip(null)}>
       <defs><filter id="bs"><feDropShadow dx="0" dy="1" stdDeviation="1.5" floodOpacity=".2"/></filter></defs>
 
-      {/* Date ring (outermost) */}
-      {s.showDates&&MF.map((_,mi)=>{
-        const sd=mD(mi),ed=mD(mi)+30*dir,s2=Math.min(sd,ed),e2=Math.max(sd,ed);
-        const days=DAYS_IN_MONTH[mi],weekSlice=(e2-s2)/Math.ceil(days/7);
-        return(<g key={`dr${mi}`}>
-          <path d={aP(cx,cy,dateRO,dateRI,s2,e2)} fill={th.cardAlt} stroke={th.border} strokeWidth=".5"/>
-          {Array.from({length:Math.ceil(days/7)},(_,wi)=>{
-            const ws=s2+wi*weekSlice,we=s2+(wi+1)*weekSlice,wm=(ws+we)/2;
-            const dayStart=wi*7+1,dayEnd=Math.min((wi+1)*7,days);
-            const[tx,ty]=p2c(cx,cy,(dateRI+dateRO)/2,wm);
-            const rot=wm,fl=rot>90&&rot<270;
-            return(<text key={wi} x={tx} y={ty} textAnchor="middle" dominantBaseline="central" fill={th.sub} fontSize="6" fontWeight="600"
-              transform={`rotate(${fl?rot+180:rot},${tx},${ty})`}>{dayStart}-{dayEnd}</text>);
-          })}
+      {/* Day ring - outermost */}
+      {showDayRing&&daySlices.map((ds,i)=>{
+        const mid=(ds.s+ds.e)/2;
+        const rText=(dayRI+dayRO)/2;
+        const[tx,ty]=p2c(cx,cy,rText,mid);
+        const rot=mid,fl=rot>90&&rot<270;
+        const isMonday=new Date(new Date().getFullYear(),ds.mi,ds.d).getDay()===1;
+        const is1st=ds.d===1;
+        return(<g key={i}>
+          <path d={aP(cx,cy,dayRO,dayRI,ds.s,ds.e)}
+            fill={ds.isToday?"#5B5EA633":ds.isWeekend?th.border+"55":is1st?"#5B5EA611":th.alt}
+            stroke={isMonday||is1st?th.muted+"66":th.border+"44"} strokeWidth={isMonday||is1st?".8":".2"}/>
+          <text x={tx} y={ty} textAnchor="middle" dominantBaseline="central"
+            fill={ds.isToday?"#E8453C":isMonday?"#5B5EA6":ds.isWeekend?th.sub:th.muted}
+            fontSize={ds.isToday?"7":isMonday?"6":"5"} fontWeight={ds.isToday||isMonday?"800":"500"}
+            transform={`rotate(${fl?rot+180:rot},${tx},${ty})`}>
+            {ds.isToday?`${ds.wk} ${ds.d}.${ds.mi+1}.`:isMonday?`${ds.wk} ${ds.d}.`:ds.d}
+          </text>
         </g>);
       })}
 
       {/* Month ring */}
       {MF.map((nm,mi)=>{
-        const sd=mD(mi),ed=mD(mi)+30*dir,s2=Math.min(sd,ed),e2=Math.max(sd,ed);
+        const sd=mS(mi),ed=mE(mi),s2=Math.min(sd,ed),e2=Math.max(sd,ed);
         const isCur=mi===cm,isSel=mi===selectedMonth;
         return(<g key={`mr${mi}`}>
           <path d={aP(cx,cy,monthRO,monthRI,s2,e2)}
-            fill={isSel?th.text+"22":isCur?"#5B5EA622":th.cardAlt}
+            fill={isSel?th.text+"22":isCur?"#5B5EA622":th.alt}
             stroke={th.border} strokeWidth=".5" onClick={()=>onMonthClick(mi)} style={{cursor:"pointer"}}/>
           {(()=>{const md=(s2+e2)/2,[lx,ly]=p2c(cx,cy,(monthRI+monthRO)/2,md),rot=md,fl=rot>90&&rot<270;
-            return<text x={lx} y={ly} textAnchor="middle" dominantBaseline="central" fill={isCur?"#5B5EA6":th.muted}
-              fontSize="9" fontWeight={isCur?"800":"600"} transform={`rotate(${fl?rot+180:rot},${lx},${ly})`}
+            return<text x={lx} y={ly} textAnchor="middle" dominantBaseline="central"
+              fill={isCur?"#5B5EA6":th.muted} fontSize="9" fontWeight={isCur?"800":"600"}
+              transform={`rotate(${fl?rot+180:rot},${lx},${ly})`}
               onClick={()=>onMonthClick(mi)} style={{cursor:"pointer"}}>{MS[mi]}</text>})()}
         </g>);
       })}
 
-      {/* Category label rings + data rings */}
-      {rings.map(({cat,ri,labelRI,labelRO,dataRI,dataRO})=>(
+      {/* Category label + data rings */}
+      {rings.map(({cat,ri,lRI,lRO,dRI,dRO})=>(
         <g key={cat.id}>
-          {/* Thin label ring - solid category color */}
-          {MF.map((_,mi)=>{
-            const sd=mD(mi),ed=mD(mi)+30*dir,s2=Math.min(sd,ed),e2=Math.max(sd,ed);
-            return<path key={`lb${mi}`} d={aP(cx,cy,labelRO,labelRI,s2,e2)} fill={cat.color} opacity=".6" stroke={th.card} strokeWidth=".5"/>;
-          })}
-          {/* Label text (one curved text across bottom) */}
-          {(()=>{const rM=(labelRI+labelRO)/2,pid=`cl${ri}`;
-            const la=mD(6.5),lb=mD(8),s2=Math.min(la,lb),e2=Math.max(la,lb);
+          {MF.map((_,mi)=>{const sd=mS(mi),ed=mE(mi),s2=Math.min(sd,ed),e2=Math.max(sd,ed);
+            return<path key={`l${mi}`} d={aP(cx,cy,lRO,lRI,s2,e2)} fill={cat.color} opacity=".55" stroke={th.card} strokeWidth=".3"/>})}
+          {MF.map((_,mi)=>{const sd=mS(mi),ed=mE(mi),s2=Math.min(sd,ed),e2=Math.max(sd,ed);
+            const isSel=mi===selectedMonth,isCur=mi===cm;
+            return<path key={`d${mi}`} d={aP(cx,cy,dRO,dRI,s2,e2)} fill={cat.color} opacity={isSel?.65:isCur?.5:.3} stroke={th.card} strokeWidth=".5" onClick={()=>onMonthClick(mi)} style={{cursor:"pointer"}}/>})}
+          {(()=>{const rM=(lRI+lRO)/2,pid=`cl${ri}`,la=mS(7),lb=mE(7),s2=Math.min(la,lb),e2=Math.max(la,lb);
             const[sx2,sy2]=p2c(cx,cy,rM,s2),[ex2,ey2]=p2c(cx,cy,rM,e2);
             return(<g><defs><path id={pid} d={`M${sx2},${sy2} A${rM},${rM} 0 0,1 ${ex2},${ey2}`} fill="none"/></defs>
-              <text fontSize="7" fontWeight="700" fill={th.text+"66"}><textPath href={`#${pid}`} startOffset="50%" textAnchor="middle">{cat.name}</textPath></text></g>)})()}
+              <text fontSize="6.5" fontWeight="700" fill={th.text+"55"}><textPath href={`#${pid}`} startOffset="50%" textAnchor="middle">{cat.name}</textPath></text></g>)})()}
+        </g>))}
 
-          {/* Data ring background */}
-          {MF.map((_,mi)=>{
-            const sd=mD(mi),ed=mD(mi)+30*dir,s2=Math.min(sd,ed),e2=Math.max(sd,ed);
-            const isSel=mi===selectedMonth,isCur=mi===cm;
-            return<path key={`bg${mi}`} d={aP(cx,cy,dataRO,dataRI,s2,e2)} fill={cat.color} opacity={isSel?.65:isCur?.5:.3} stroke={th.card} strokeWidth=".5" onClick={()=>onMonthClick(mi)} style={{cursor:"pointer"}}/>;
-          })}
-        </g>
-      ))}
-
-      {/* Month divider lines through all rings */}
-      {Array.from({length:12},(_,i)=>{const d=mD(i),[x1,y1]=p2c(cx,cy,monthRI,d),[x2,y2]=p2c(cx,cy,outerR,d);
+      {/* Divider lines */}
+      {Array.from({length:12},(_,i)=>{const d=mS(i),[x1,y1]=p2c(cx,cy,monthRI,d),[x2,y2]=p2c(cx,cy,outerR,d);
         return<line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke={th.card+"88"} strokeWidth="1"/>})}
 
       {/* Holiday markers */}
       {s.showHolidays&&holidays.map((h,hi)=>{
-        const mi=h.month,dayFrac=h.day/DAYS_IN_MONTH[mi];
-        const deg=mD(mi)+dayFrac*30*dir;
-        const[hx,hy]=p2c(cx,cy,monthRO+1,deg);
-        return<circle key={hi} cx={hx} cy={hy} r={2.5} fill="#E8453C" opacity=".7"><title>{h.name}</title></circle>;
+        const frac=h.day/DIM[h.month];
+        const sd=mS(h.month),ed=mE(h.month),s2=Math.min(sd,ed),e2=Math.max(sd,ed);
+        const deg=s2+frac*(e2-s2);
+        const[hx,hy]=p2c(cx,cy,monthRO+2,deg);
+        return<circle key={hi} cx={hx} cy={hy} r={2.5} fill="#E8453C" opacity=".7"><title>{h.name} ({h.day}.{h.month+1}.)</title></circle>;
       })}
 
+      {/* Today marker line */}
+      {(()=>{const td=new Date(),mi=td.getMonth(),day=td.getDate();
+        const sd=mS(mi),ed=mE(mi),s2=Math.min(sd,ed),e2=Math.max(sd,ed);
+        const deg=s2+(day/DIM[mi])*(e2-s2);
+        const[x1,y1]=p2c(cx,cy,monthRI-2,deg),[x2,y2]=p2c(cx,cy,outerR+3,deg);
+        return<line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#E8453C" strokeWidth="1.5" opacity=".5" strokeDasharray="4 3"/>;
+      })()}
+
       {/* Event boxes */}
-      {rings.map(({cat,ri,dataRI,dataRO})=>{
+      {rings.map(({cat,ri,dRI,dRO})=>{
         return Object.entries(eRM).filter(([k])=>k.startsWith(ri+"-")).map(([key,evs])=>{
           const mi=+key.split("-")[1];
-          const sd=mD(mi)+.5*dir,ed=mD(mi)+30*dir-.5*dir,s2=Math.min(sd,ed),e2=Math.max(sd,ed);
-          const n=evs.length,sl=(e2-s2)/n;
-          const rI=dataRI+1,rO=dataRO-1,rM=(rI+rO)/2;
+          const rI=dRI+1,rO=dRO-1,rM=(rI+rO)/2;
+          const sd=mS(mi)+.5*dir,ed=mE(mi)-.5*dir,s2n=Math.min(sd,ed),e2n=Math.max(sd,ed);
+          const n=evs.length,sl=(e2n-s2n)/n;
           return evs.map((ev,ei)=>{
-            const es=s2+ei*sl+.3,ee=s2+(ei+1)*sl-.3,mid=(es+ee)/2;
+            const es=s2n+ei*sl+.3,ee=s2n+(ei+1)*sl-.3,mid=(es+ee)/2;
             const bp=aP(cx,cy,rO,rI,es,ee),isH=hov===ev.id;
             const[tx,ty]=p2c(cx,cy,rM,mid),tr=mid,fl=tr>90&&tr<270,fr=fl?tr+180:tr;
             const al=(Math.PI*2*rM*(ee-es))/360,mc=Math.max(2,Math.floor(al/6));
             let dt=ev.title;if(dt.length>mc)dt=dt.slice(0,mc-1)+"\u2026";
             const fc=ev.eventColor||th.card,tc=ev.eventColor?"#fff":th.text;
-            return(<g key={ev.id} onMouseEnter={()=>setHov(ev.id)} onMouseLeave={()=>{setHov(null);setTip(null)}}
-              onMouseMove={e=>hMM(e,ev)} onClick={e=>{e.stopPropagation();onEventClick(ev)}} style={{cursor:"pointer"}}>
+            return(<g key={ev.id} onMouseEnter={()=>setHov(ev.id)} onMouseLeave={()=>{setHov(null);setTip(null)}} onMouseMove={e=>hMM(e,ev)} onClick={e=>{e.stopPropagation();onEventClick(ev)}} style={{cursor:"pointer"}}>
               <path d={bp} fill={fc} opacity={isH?1:ev.eventColor?.9:.88} stroke={isH?th.text:th.card+"55"} strokeWidth={isH?1.5:.5} filter={isH?"url(#bs)":undefined}/>
               <text x={tx} y={ty} textAnchor="middle" dominantBaseline="central" fill={tc} fontSize={rO-rI>35?"9":"7.5"} fontWeight="700" transform={`rotate(${fr},${tx},${ty})`} style={{pointerEvents:"none"}}>{dt}</text>
-              {/* Tag dots */}
-              {ev.tags&&ev.tags.length>0&&(()=>{const[dx,dy]=p2c(cx,cy,rO-3,es+1);const tag=TAGS.find(t=>t.id===ev.tags[0]);
-                return tag?<circle cx={dx} cy={dy} r={2} fill={tag.color} opacity=".9"/>:null;
-              })()}
+              {ev.tags&&ev.tags.length>0&&(()=>{const tag=TAGS.find(t=>t.id===ev.tags[0]);return tag?<circle cx={p2c(cx,cy,rO-2,es+.5)[0]} cy={p2c(cx,cy,rO-2,es+.5)[1]} r={1.8} fill={tag.color} opacity=".9"/>:null})()}
             </g>);
           });
         });
       })}
 
       {/* Center */}
-      <circle cx={cx} cy={cy} r={centerR+8} fill={th.cardAlt} stroke={th.border} strokeWidth="1"/>
+      <circle cx={cx} cy={cy} r={centerR+6} fill={th.alt} stroke={th.border} strokeWidth="1"/>
       <circle cx={cx} cy={cy} r={centerR} fill={th.card} stroke={th.border} strokeWidth="1"/>
-      {s.logo?<image href={s.logo} x={cx-centerR+8} y={cy-centerR+8} width={(centerR-8)*2} height={(centerR-8)*2} clipPath={`circle(${centerR-10}px at ${centerR-8}px ${centerR-8}px)`} style={{borderRadius:"50%"}}/>:
-      <><text x={cx} y={cy-12} textAnchor="middle" fill={th.text} fontSize="11" fontWeight="800" style={{letterSpacing:".06em"}}>{clockTitle||"VUOSIKELLO"}</text>
-        <text x={cx} y={cy+8} textAnchor="middle" fill="#5B5EA6" fontSize="20" fontWeight="800">{new Date().getFullYear()}</text>
-        <text x={cx} y={cy+22} textAnchor="middle" fill={th.sub} fontSize="8">{events.length} tapahtumaa</text></>}
+      {s.logo?<image href={s.logo} x={cx-centerR+6} y={cy-centerR+6} width={(centerR-6)*2} height={(centerR-6)*2}/>:
+      <><text x={cx} y={cy-10} textAnchor="middle" fill={th.text} fontSize="10" fontWeight="800" style={{letterSpacing:".05em"}}>{clockTitle||"VUOSIKELLO"}</text>
+        <text x={cx} y={cy+8} textAnchor="middle" fill="#5B5EA6" fontSize="18" fontWeight="800">{new Date().getFullYear()}</text>
+        <text x={cx} y={cy+20} textAnchor="middle" fill={th.sub} fontSize="7">{events.length} tapahtumaa</text></>}
     </svg>
 
-    {tip&&<div style={{position:"absolute",left:Math.min(tip.x+12,sz-230),top:tip.y-10,background:"#1a1a2e",color:"#f8fafc",padding:"10px 14px",borderRadius:10,fontSize:12,maxWidth:240,zIndex:50,boxShadow:"0 8px 24px rgba(0,0,0,.3)",pointerEvents:"none",border:`2px solid ${tip.ev.eventColor||cM[tip.ev.categoryId]?.color||"#5B5EA6"}`}}>
+    {tip&&<div style={{position:"absolute",left:Math.min(tip.x+12,sz-240),top:tip.y-10,background:"#1a1a2e",color:"#f8fafc",padding:"10px 14px",borderRadius:10,fontSize:12,maxWidth:240,zIndex:50,boxShadow:"0 8px 24px rgba(0,0,0,.3)",pointerEvents:"none",border:`2px solid ${tip.ev.eventColor||cM[tip.ev.categoryId]?.color||"#5B5EA6"}`}}>
       <div style={{fontWeight:700,marginBottom:3}}>{tip.ev.title}</div>
       {tip.ev.desc&&<div style={{fontSize:11,color:"#94a3b8",lineHeight:1.4}}>{tip.ev.desc}</div>}
-      {tip.ev.tags&&tip.ev.tags.length>0&&<div style={{display:"flex",gap:3,marginTop:4,flexWrap:"wrap"}}>{tip.ev.tags.map(t=>{const tag=TAGS.find(x=>x.id===t);return tag?<span key={t} style={{fontSize:8,padding:"1px 6px",borderRadius:99,background:tag.color+"33",color:tag.color,fontWeight:600}}>{tag.name}</span>:null})}</div>}
-      <div style={{fontSize:9,color:"#64748b",marginTop:4}}>{MF[tip.ev.month]} · {cM[tip.ev.categoryId]?.name||""}</div>
+      {tip.ev.startDay&&<div style={{fontSize:9,color:"#5B5EA6",marginTop:2}}>{tip.ev.startDay}.–{tip.ev.endDay||DIM[tip.ev.month]}.{tip.ev.month+1}.</div>}
+      {tip.ev.tags&&tip.ev.tags.length>0&&<div style={{display:"flex",gap:3,marginTop:3,flexWrap:"wrap"}}>{tip.ev.tags.map(t=>{const tag=TAGS.find(x=>x.id===t);return tag?<span key={t} style={{fontSize:7,padding:"1px 5px",borderRadius:99,background:tag.color+"33",color:tag.color,fontWeight:600}}>{tag.name}</span>:null})}</div>}
+      <div style={{fontSize:9,color:"#64748b",marginTop:3}}>{MF[tip.ev.month]} · {cM[tip.ev.categoryId]?.name||""}</div>
     </div>}
   </div>);
 }
 
-/* ═══ Roadmap View ═══ */
 function RoadmapView({events,categories,onEventClick,clockTitle,theme:th}){
   const cM=useMemo(()=>Object.fromEntries(categories.map(c=>[c.id,c])),[categories]);
-  const quarters=[[0,1,2],[3,4,5],[6,7,8],[9,10,11]];
   return(<div style={{maxWidth:900,margin:"0 auto"}}>
-    <div style={{textAlign:"center",padding:"16px 0",marginBottom:16}}>
-      <div style={{fontSize:10,fontWeight:700,color:th.sub,letterSpacing:".15em",textTransform:"uppercase"}}>{clockTitle}</div>
-      <div style={{fontSize:24,fontWeight:800,color:th.text}}>Roadmap {new Date().getFullYear()}</div>
-    </div>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
-      {quarters.map((qMonths,qi)=>(
-        <div key={qi} style={{background:th.card,borderRadius:12,border:`1px solid ${th.border}`,overflow:"hidden"}}>
-          <div style={{padding:"10px 14px",borderBottom:`1px solid ${th.border}`,background:th.cardAlt}}>
-            <span style={{fontSize:14,fontWeight:800,color:th.text}}>Q{qi+1}</span>
-            <span style={{fontSize:10,color:th.sub,marginLeft:6}}>{MS[qMonths[0]]}–{MS[qMonths[2]]}</span>
-          </div>
-          <div style={{padding:"8px 10px"}}>
-            {qMonths.map(mi=>{
-              const me=events.filter(e=>e.month===mi);
-              if(!me.length)return null;
-              return(<div key={mi} style={{marginBottom:8}}>
-                <div style={{fontSize:9,fontWeight:700,color:th.sub,marginBottom:4,letterSpacing:".04em"}}>{MS[mi].toUpperCase()}</div>
-                {me.map(ev=>{const cat=cM[ev.categoryId];return(
-                  <div key={ev.id} onClick={()=>onEventClick(ev)} style={{
-                    padding:"6px 10px",borderRadius:6,marginBottom:4,cursor:"pointer",
-                    borderLeft:`3px solid ${ev.eventColor||cat?.color||th.border}`,
-                    background:th.cardAlt,transition:"all .15s"
-                  }} onMouseEnter={e=>e.currentTarget.style.background=th.border} onMouseLeave={e=>e.currentTarget.style.background=th.cardAlt}>
-                    <div style={{fontSize:11,fontWeight:700,color:th.text}}>{ev.title}</div>
-                    {ev.tags&&ev.tags.length>0&&<div style={{display:"flex",gap:2,marginTop:2}}>{ev.tags.map(t=>{const tag=TAGS.find(x=>x.id===t);return tag?<span key={t} style={{fontSize:7,padding:"1px 5px",borderRadius:99,background:tag.color+"22",color:tag.color,fontWeight:700}}>{tag.name}</span>:null})}</div>}
-                    {cat&&<div style={{fontSize:8,color:th.sub,marginTop:2}}>{cat.name}</div>}
-                  </div>)})}
-              </div>);
-            })}
-          </div>
-        </div>
-      ))}
-    </div>
-  </div>);
+    <div style={{textAlign:"center",padding:"14px 0",marginBottom:14}}><div style={{fontSize:9,fontWeight:700,color:th.sub,letterSpacing:".15em",textTransform:"uppercase"}}>{clockTitle}</div>
+      <div style={{fontSize:22,fontWeight:800,color:th.text}}>Roadmap {new Date().getFullYear()}</div></div>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
+      {[[0,1,2],[3,4,5],[6,7,8],[9,10,11]].map((q,qi)=>(
+        <div key={qi} style={{background:th.card,borderRadius:10,border:`1px solid ${th.border}`,overflow:"hidden"}}>
+          <div style={{padding:"8px 12px",borderBottom:`1px solid ${th.border}`,background:th.alt}}>
+            <span style={{fontSize:13,fontWeight:800,color:th.text}}>Q{qi+1}</span><span style={{fontSize:9,color:th.sub,marginLeft:5}}>{MS[q[0]]}–{MS[q[2]]}</span></div>
+          <div style={{padding:"6px 8px"}}>
+            {q.map(mi=>{const me=events.filter(e=>e.month===mi);if(!me.length)return null;
+              return(<div key={mi} style={{marginBottom:6}}><div style={{fontSize:8,fontWeight:700,color:th.sub,marginBottom:3}}>{MS[mi].toUpperCase()}</div>
+                {me.map(ev=>{const cat=cM[ev.categoryId];return(<div key={ev.id} onClick={()=>onEventClick(ev)} style={{padding:"5px 8px",borderRadius:5,marginBottom:3,cursor:"pointer",borderLeft:`3px solid ${ev.eventColor||cat?.color||th.border}`,background:th.alt}}>
+                  <div style={{fontSize:10,fontWeight:700,color:th.text}}>{ev.title}</div>
+                  {ev.startDay&&<div style={{fontSize:8,color:th.sub}}>{ev.startDay}.–{ev.endDay||DIM[mi]}.{mi+1}.</div>}
+                  {ev.tags&&ev.tags.length>0&&<div style={{display:"flex",gap:2,marginTop:1}}>{ev.tags.map(t=>{const tag=TAGS.find(x=>x.id===t);return tag?<span key={t} style={{fontSize:6,padding:"0 4px",borderRadius:99,background:tag.color+"22",color:tag.color,fontWeight:700}}>{tag.name}</span>:null})}</div>}
+                </div>)})}</div>)})}</div></div>))}</div></div>);
 }
 
-/* ═══ Timeline & List Views ═══ */
+/* ═══ Timeline View ═══ */
 function TimelineView({events,categories,onEventClick,clockTitle,theme:th}){
   const cM=useMemo(()=>Object.fromEntries(categories.map(c=>[c.id,c])),[categories]);const cm=new Date().getMonth();
-  return(<div style={{maxWidth:700,margin:"0 auto"}}>
-    <div style={{textAlign:"center",padding:"16px 0",borderBottom:`1px solid ${th.border}`}}>
-      <div style={{fontSize:10,fontWeight:700,color:th.sub,letterSpacing:".15em"}}>{clockTitle}</div>
-      <div style={{fontSize:26,fontWeight:800,color:th.text}}>Aikajana {new Date().getFullYear()}</div>
-    </div>
-    <div style={{position:"relative",padding:"0 0 30px"}}><div style={{position:"absolute",left:30,top:0,bottom:0,width:2,background:th.border}}/>
+  return(<div style={{maxWidth:680,margin:"0 auto"}}>
+    <div style={{textAlign:"center",padding:"14px 0",borderBottom:`1px solid ${th.border}`}}><div style={{fontSize:9,fontWeight:700,color:th.sub,letterSpacing:".15em"}}>{clockTitle}</div>
+      <div style={{fontSize:24,fontWeight:800,color:th.text}}>Aikajana {new Date().getFullYear()}</div></div>
+    <div style={{position:"relative",padding:"0 0 24px"}}><div style={{position:"absolute",left:28,top:0,bottom:0,width:2,background:th.border}}/>
       {["Q1","Q2","Q3","Q4"].map((q,qi)=><div key={q}>
-        <div style={{display:"flex",alignItems:"center",gap:10,padding:qi?"24px 0 12px":"20px 0 12px",marginLeft:20}}>
-          <div style={{width:22,height:22,borderRadius:6,background:th.text,color:th.card,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:800}}>{q}</div>
+        <div style={{display:"flex",alignItems:"center",gap:8,padding:qi?"20px 0 10px":"16px 0 10px",marginLeft:18}}>
+          <div style={{width:20,height:20,borderRadius:5,background:th.text,color:th.card,display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,fontWeight:800}}>{q}</div>
           <div style={{flex:1,height:1,background:th.border}}/></div>
         {[0,1,2].map(oi=>{const mi=qi*3+oi,isCur=mi===cm,me=events.filter(e=>e.month===mi);return(
-          <div key={mi} style={{display:"flex",gap:0,position:"relative",minHeight:me.length?"auto":36}}>
-            <div style={{width:62,flexShrink:0,display:"flex",flexDirection:"column",alignItems:"center",paddingTop:2}}>
-              <div style={{width:isCur?16:10,height:isCur?16:10,borderRadius:"50%",background:isCur?"#5B5EA6":me.length?th.text:th.border,zIndex:2}}/>
-              <div style={{fontSize:8,fontWeight:800,color:isCur?"#5B5EA6":th.sub,marginTop:2}}>{String(mi+1).padStart(2,"0")}</div></div>
-            <div style={{flex:1,paddingBottom:8}}>
-              <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:me.length?5:0,marginTop:-2}}>
-                <span style={{fontSize:14,fontWeight:800,color:isCur?"#5B5EA6":th.text}}>{MF[mi]}</span>
-                {isCur&&<span style={{fontSize:8,fontWeight:700,color:"#fff",background:"#5B5EA6",padding:"1px 6px",borderRadius:99}}>NYT</span>}</div>
+          <div key={mi} style={{display:"flex",gap:0,position:"relative",minHeight:me.length?"auto":32}}>
+            <div style={{width:56,flexShrink:0,display:"flex",flexDirection:"column",alignItems:"center",paddingTop:1}}>
+              <div style={{width:isCur?14:9,height:isCur?14:9,borderRadius:"50%",background:isCur?"#5B5EA6":me.length?th.text:th.border,zIndex:2}}/>
+              <div style={{fontSize:7,fontWeight:800,color:isCur?"#5B5EA6":th.sub,marginTop:2}}>{String(mi+1).padStart(2,"0")}</div></div>
+            <div style={{flex:1,paddingBottom:7}}>
+              <div style={{display:"flex",alignItems:"baseline",gap:5,marginBottom:me.length?4:0}}>
+                <span style={{fontSize:13,fontWeight:800,color:isCur?"#5B5EA6":th.text}}>{MF[mi]}</span>
+                {isCur&&<span style={{fontSize:7,fontWeight:700,color:"#fff",background:"#5B5EA6",padding:"1px 5px",borderRadius:99}}>NYT</span>}</div>
               {me.map(ev=>{const cat=cM[ev.categoryId];return(
-                <div key={ev.id} onClick={()=>onEventClick(ev)} style={{background:th.card,borderRadius:8,padding:"8px 12px",marginBottom:4,cursor:"pointer",borderLeft:`3px solid ${ev.eventColor||cat?.color||th.border}`,boxShadow:"0 1px 3px rgba(0,0,0,.04)"}}>
-                  <span style={{fontWeight:700,fontSize:12,color:th.text}}>{ev.title}</span>
-                  {ev.tags&&ev.tags.length>0&&<span style={{marginLeft:5}}>{ev.tags.map(t=>{const tag=TAGS.find(x=>x.id===t);return tag?<span key={t} style={{fontSize:7,padding:"1px 5px",borderRadius:99,background:tag.color+"22",color:tag.color,fontWeight:700,marginRight:2}}>{tag.name}</span>:null})}</span>}
-                  {ev.desc&&<div style={{fontSize:10,color:th.muted,marginTop:2}}>{ev.desc}</div>}
+                <div key={ev.id} onClick={()=>onEventClick(ev)} style={{background:th.card,borderRadius:7,padding:"7px 10px",marginBottom:3,cursor:"pointer",borderLeft:`3px solid ${ev.eventColor||cat?.color||th.border}`,boxShadow:"0 1px 3px rgba(0,0,0,.03)"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:4}}>
+                    <span style={{fontWeight:700,fontSize:11,color:th.text}}>{ev.title}</span>
+                    {ev.startDay&&<span style={{fontSize:7,color:th.sub}}>{ev.startDay}.–{ev.endDay||DIM[mi]}.{mi+1}.</span>}
+                  </div>
+                  {ev.tags&&ev.tags.length>0&&<div style={{display:"flex",gap:2,marginTop:2}}>{ev.tags.map(t=>{const tag=TAGS.find(x=>x.id===t);return tag?<span key={t} style={{fontSize:6,padding:"0 4px",borderRadius:99,background:tag.color+"22",color:tag.color,fontWeight:700}}>{tag.name}</span>:null})}</div>}
+                  {ev.desc&&<div style={{fontSize:9,color:th.muted,marginTop:2}}>{ev.desc}</div>}
                 </div>)})}
-              {!me.length&&<div style={{fontSize:10,color:th.border}}>—</div>}
-            </div></div>)})}
-      </div>)}
-    </div>
-  </div>);
+              {!me.length&&<div style={{fontSize:9,color:th.border}}>—</div>}</div></div>)})}
+      </div>)}</div></div>);
 }
 
+/* ═══ List View ═══ */
 function ListView({events,categories,onMonthClick,onEventClick,theme:th}){
   const cm=new Date().getMonth();
-  return(<div style={{overflowX:"auto",borderRadius:10}}><div style={{minWidth:1050}}>
-    <div style={{display:"flex",borderBottom:`2px solid ${th.border}`}}><div style={{width:90,flexShrink:0}}/>
-      {MF.map((n,i)=><div key={i} onClick={()=>onMonthClick(i)} style={{flex:1,textAlign:"center",padding:"6px",cursor:"pointer",fontSize:10,fontWeight:700,color:i===cm?"#5B5EA6":th.muted,background:i===cm?"#5B5EA611":"transparent",borderLeft:`1px solid ${th.border}`}}>{MS[i]}</div>)}</div>
+  return(<div style={{overflowX:"auto",borderRadius:8}}><div style={{minWidth:1000}}>
+    <div style={{display:"flex",borderBottom:`2px solid ${th.border}`}}><div style={{width:80,flexShrink:0}}/>
+      {MF.map((n,i)=><div key={i} onClick={()=>onMonthClick(i)} style={{flex:1,textAlign:"center",padding:"5px",cursor:"pointer",fontSize:9,fontWeight:700,color:i===cm?"#5B5EA6":th.muted,background:i===cm?"#5B5EA611":"transparent",borderLeft:`1px solid ${th.border}`}}>{MS[i]}</div>)}</div>
     {categories.filter(c=>c.visible).map((cat,ri)=>(
-      <div key={cat.id} style={{display:"flex",borderBottom:`1px solid ${th.border}`,minHeight:36}}>
-        <div style={{width:90,flexShrink:0,display:"flex",alignItems:"center",gap:4,padding:"2px 6px",fontSize:10,fontWeight:700,color:th.muted,background:ri%2?th.card:th.cardAlt}}>
+      <div key={cat.id} style={{display:"flex",borderBottom:`1px solid ${th.border}`,minHeight:32}}>
+        <div style={{width:80,flexShrink:0,display:"flex",alignItems:"center",gap:3,padding:"2px 5px",fontSize:9,fontWeight:700,color:th.muted,background:ri%2?th.card:th.alt}}>
           <span style={{width:6,height:6,borderRadius:2,background:cat.color}}/>{cat.name}</div>
         {MF.map((_,mi)=>{const me=events.filter(e=>e.month===mi&&e.categoryId===cat.id);
-          return<div key={mi} onClick={()=>onMonthClick(mi)} style={{flex:1,borderLeft:`1px solid ${th.border}`,padding:"2px",background:mi===cm?"#5B5EA608":ri%2?th.cardAlt:th.card,display:"flex",flexDirection:"column",gap:1,cursor:"pointer"}}>
-            {me.map(ev=><div key={ev.id} onClick={e=>{e.stopPropagation();onEventClick(ev)}} style={{fontSize:8,padding:"2px 3px",borderRadius:3,background:ev.eventColor||cat.color,color:"#fff",fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",cursor:"pointer"}}>{ev.title}</div>)}</div>})}
-      </div>))}
-  </div></div>);
+          return<div key={mi} onClick={()=>onMonthClick(mi)} style={{flex:1,borderLeft:`1px solid ${th.border}`,padding:"1px",background:mi===cm?"#5B5EA608":ri%2?th.alt:th.card,display:"flex",flexDirection:"column",gap:1,cursor:"pointer"}}>
+            {me.map(ev=><div key={ev.id} onClick={e=>{e.stopPropagation();onEventClick(ev)}} style={{fontSize:8,padding:"1px 3px",borderRadius:2,background:ev.eventColor||cat.color,color:"#fff",fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",cursor:"pointer"}}>{ev.title}</div>)}</div>})}</div>))}</div></div>);
 }
 
 /* ═══ Sidebar ═══ */
 function Sidebar({clock,onUpdate,onMonthClick,selectedMonth,showSB,setShowSB,setShowCat,setShowSett,theme:th}){
   const cm=new Date().getMonth();if(!showSB)return null;
-  return(<div style={{width:230,flexShrink:0,background:th.card,borderRight:`1px solid ${th.border}`,padding:"12px 10px",overflowY:"auto",height:"calc(100vh - 50px)",fontSize:11,color:th.text}}>
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+  return(<div style={{width:220,flexShrink:0,background:th.card,borderRight:`1px solid ${th.border}`,padding:"10px 8px",overflowY:"auto",height:"calc(100vh - 48px)",fontSize:10,color:th.text}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
       <h3 style={{fontSize:12,fontWeight:800}}>{clock.name}</h3>
-      <button onClick={()=>setShowSB(false)} style={{background:"none",border:"none",color:th.sub,cursor:"pointer",fontSize:13}}>✕</button></div>
-
-    <div style={{marginBottom:12}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-        <span style={{fontSize:9,fontWeight:700,color:th.muted,letterSpacing:".06em"}}>KEHÄT</span>
-        <button onClick={()=>setShowCat(true)} style={{background:"none",border:"none",color:"#5B5EA6",cursor:"pointer",fontSize:9,fontWeight:700,fontFamily:"inherit"}}>Muokkaa</button></div>
+      <button onClick={()=>setShowSB(false)} style={{background:"none",border:"none",color:th.sub,cursor:"pointer",fontSize:12}}>✕</button></div>
+    <div style={{marginBottom:10}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
+        <span style={{fontSize:9,fontWeight:700,color:th.muted,letterSpacing:".05em"}}>KEHÄT</span>
+        <button onClick={()=>setShowCat(true)} style={{background:"none",border:"none",color:"#5B5EA6",cursor:"pointer",fontSize:8,fontWeight:700,fontFamily:"inherit"}}>Muokkaa</button></div>
       {clock.categories.map(cat=>(
-        <div key={cat.id} style={{display:"flex",alignItems:"center",gap:5,padding:"3px 0",borderBottom:`1px solid ${th.border}22`}}>
-          <div style={{width:11,height:11,borderRadius:3,background:cat.color,opacity:cat.visible?1:.2}}/>
-          <span style={{flex:1,fontWeight:600,fontSize:10,color:cat.visible?th.text:th.border}}>{cat.name}</span>
-          <button onClick={()=>onUpdate({categories:clock.categories.map(c=>c.id===cat.id?{...c,visible:!c.visible}:c)})} style={{background:"none",border:"none",cursor:"pointer",color:cat.visible?"#5B5EA6":th.border,padding:0,fontSize:10}}>{cat.visible?"👁":"👁‍🗨"}</button>
-        </div>))}
-      <div style={{marginTop:3,display:"flex",gap:6}}>
+        <div key={cat.id} style={{display:"flex",alignItems:"center",gap:4,padding:"3px 0"}}>
+          <div style={{width:10,height:10,borderRadius:2,background:cat.color,opacity:cat.visible?1:.2}}/>
+          <span style={{flex:1,fontWeight:600,fontSize:9,color:cat.visible?th.text:th.border}}>{cat.name}</span>
+          <button onClick={()=>onUpdate({categories:clock.categories.map(c=>c.id===cat.id?{...c,visible:!c.visible}:c)})} style={{background:"none",border:"none",cursor:"pointer",color:cat.visible?"#5B5EA6":th.border,padding:0,fontSize:9}}>{cat.visible?"👁":"–"}</button></div>))}
+      <div style={{marginTop:2,display:"flex",gap:6}}>
         <button onClick={()=>onUpdate({categories:clock.categories.map(c=>({...c,visible:true}))})} style={{fontSize:8,color:"#5B5EA6",background:"none",border:"none",cursor:"pointer",fontWeight:700,fontFamily:"inherit"}}>Kaikki</button>
-        <button onClick={()=>onUpdate({categories:clock.categories.map(c=>({...c,visible:false}))})} style={{fontSize:8,color:th.sub,background:"none",border:"none",cursor:"pointer",fontWeight:700,fontFamily:"inherit"}}>Ei mitään</button></div></div>
-
-    <div style={{marginBottom:12}}>
-      <span style={{fontSize:9,fontWeight:700,color:th.muted,letterSpacing:".06em",display:"block",marginBottom:4}}>TUNNISTEET</span>
-      <div style={{display:"flex",flexWrap:"wrap",gap:2}}>
-        {TAGS.map(t=><span key={t.id} style={{fontSize:8,padding:"1px 6px",borderRadius:99,background:t.color+"15",color:t.color,fontWeight:600}}>{t.icon} {t.name}</span>)}</div></div>
-
-    <div style={{marginBottom:12}}>
-      <span style={{fontSize:9,fontWeight:700,color:th.muted,letterSpacing:".06em",display:"block",marginBottom:4}}>KUUKAUDET</span>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:2}}>
+        <button onClick={()=>onUpdate({categories:clock.categories.map(c=>({...c,visible:false}))})} style={{fontSize:8,color:th.sub,background:"none",border:"none",cursor:"pointer",fontWeight:700,fontFamily:"inherit"}}>–</button></div></div>
+    <div style={{marginBottom:10}}>
+      <span style={{fontSize:9,fontWeight:700,color:th.muted,letterSpacing:".05em",display:"block",marginBottom:3}}>TUNNISTEET</span>
+      <div style={{display:"flex",flexWrap:"wrap",gap:2}}>{TAGS.map(t=><span key={t.id} style={{fontSize:7,padding:"1px 5px",borderRadius:99,background:t.color+"12",color:t.color,fontWeight:600}}>{t.icon}{t.name}</span>)}</div></div>
+    <div style={{marginBottom:10}}>
+      <span style={{fontSize:9,fontWeight:700,color:th.muted,letterSpacing:".05em",display:"block",marginBottom:3}}>KUUKAUDET</span>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:2}}>
         {MS.map((m,i)=>{const n=clock.events.filter(e=>e.month===i).length;
-          return<button key={i} onClick={()=>onMonthClick(i)} style={{padding:"3px",borderRadius:4,border:i===selectedMonth?"1.5px solid #5B5EA6":"1.5px solid transparent",background:i===selectedMonth?"#5B5EA611":i===cm?"#e0e7ff":th.cardAlt,color:i===cm?"#5B5EA6":th.muted,fontSize:8,fontWeight:700,fontFamily:"inherit",cursor:"pointer"}}>{m}{n>0&&<span style={{fontSize:6,display:"block",color:th.sub}}>{n}</span>}</button>})}</div></div>
-
-    <button onClick={()=>setShowSett(true)} style={{width:"100%",padding:"6px",borderRadius:6,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>⚙️ Asetukset</button>
+          return<button key={i} onClick={()=>onMonthClick(i)} style={{padding:"3px 1px",borderRadius:3,border:i===selectedMonth?"1px solid #5B5EA6":"1px solid transparent",background:i===cm?"#e0e7ff":th.alt,color:i===cm?"#5B5EA6":th.muted,fontSize:7,fontWeight:700,fontFamily:"inherit",cursor:"pointer"}}>{m.slice(0,3)}</button>})}</div></div>
+    <button onClick={()=>setShowSett(true)} style={{width:"100%",padding:"5px",borderRadius:5,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontSize:9,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>⚙️ Asetukset</button>
   </div>);
 }
 
-/* ═══ Event Modal with Tags ═══ */
-function EventModal({event,month,categories,onSave,onCancel,theme:th}){
-  const[t,setT]=useState(event?.title||"");const[d,setD]=useState(event?.desc||"");
-  const[ci,setCi]=useState(event?.categoryId||categories[0]?.id||"");
+/* ═══ Event Modal ═══ */
+function EventModal({event,month,categories,onSave,onCancel,theme:th,}){
+  const[t,setT]=useState(event?.title||"");const[d,setD]=useState(event?.desc||"");const[ci,setCi]=useState(event?.categoryId||categories[0]?.id||"");
   const[sm,setSm]=useState(event?.month??month??0);const[ec,setEc]=useState(event?.eventColor||null);
-  const[tags,setTags]=useState(event?.tags||[]);
+  const[tags,setTags]=useState(event?.tags||[]);const[sd,setSd]=useState(event?.startDay||"");const[ed,setEd]=useState(event?.endDay||"");
   const toggleTag=id=>setTags(tags.includes(id)?tags.filter(x=>x!==id):[...tags,id]);
-  const go=()=>{if(!t.trim())return;onSave({id:event?.id||uid(),month:sm,title:t.trim(),desc:d.trim(),categoryId:ci,eventColor:ec,tags})};
-  return(<div style={makeOvr(th)} onClick={onCancel}><div onClick={e=>e.stopPropagation()} style={makeMod(th)}>
-    <h3 style={{margin:"0 0 14px",fontSize:16,fontWeight:800}}>{event?"Muokkaa":"Uusi tapahtuma"}</h3>
-    <label style={{...lbl,color:th.muted}}>Kuukausi</label><select value={sm} onChange={e=>setSm(+e.target.value)} style={{...inp,background:th.cardAlt,color:th.text,borderColor:th.border}}>{MF.map((m,i)=><option key={i} value={i}>{m}</option>)}</select>
-    <label style={{...lbl,color:th.muted}}>Otsikko *</label><input value={t} onChange={e=>setT(e.target.value)} placeholder="Nimi" style={{...inp,background:th.cardAlt,color:th.text,borderColor:th.border}} autoFocus/>
-    <label style={{...lbl,color:th.muted}}>Kuvaus</label><textarea value={d} onChange={e=>setD(e.target.value)} placeholder="Lisätietoja..." rows={3} style={{...inp,resize:"vertical",minHeight:50,background:th.cardAlt,color:th.text,borderColor:th.border}}/>
-    <label style={{...lbl,color:th.muted}}>Kehä</label>
-    <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:10}}>{categories.map(c=><button key={c.id} onClick={()=>setCi(c.id)} style={{padding:"4px 10px",borderRadius:99,border:"2px solid",borderColor:ci===c.id?th.text:"transparent",background:c.color+(ci===c.id?"66":"33"),fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",color:th.text}}>{c.name}</button>)}</div>
-    <label style={{...lbl,color:th.muted}}>Väri</label>
-    <div style={{display:"flex",flexWrap:"wrap",gap:3,marginBottom:10}}>
-      <button onClick={()=>setEc(null)} style={{padding:"3px 8px",borderRadius:99,border:`2px solid ${!ec?th.text:th.border}`,background:th.card,fontSize:9,fontWeight:600,cursor:"pointer",fontFamily:"inherit",color:th.muted}}>Oletus</button>
-      {TAGS.map(c=><button key={c.id} onClick={()=>setEc(c.color)} style={{padding:"3px 8px",borderRadius:99,border:`2px solid ${ec===c.color?c.color:"transparent"}`,background:c.color+(ec===c.color?"33":"15"),color:c.color,fontSize:9,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{c.name}</button>)}</div>
-    <label style={{...lbl,color:th.muted}}>Tunnisteet</label>
-    <div style={{display:"flex",flexWrap:"wrap",gap:3,marginBottom:14}}>
-      {TAGS.map(tag=><button key={tag.id} onClick={()=>toggleTag(tag.id)} style={{padding:"3px 9px",borderRadius:99,border:`2px solid ${tags.includes(tag.id)?tag.color:"transparent"}`,background:tag.color+(tags.includes(tag.id)?"33":"10"),color:tag.color,fontSize:9,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{tag.icon} {tag.name}</button>)}</div>
-    <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}><button onClick={onCancel} style={{padding:"6px 12px",borderRadius:7,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Peruuta</button><button onClick={go} style={{padding:"6px 14px",borderRadius:7,border:"none",background:"#5B5EA6",color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",opacity:t.trim()?1:.4}}>{event?"Tallenna":"Lisää"}</button></div>
+  const go=()=>{if(!t.trim())return;onSave({id:event?.id||uid(),month:sm,title:t.trim(),desc:d.trim(),categoryId:ci,eventColor:ec,tags,startDay:sd?+sd:null,endDay:ed?+ed:null})};
+  const ovr={position:"fixed",inset:0,background:"rgba(0,0,0,.4)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:16,backdropFilter:"blur(4px)"};
+  const mod={background:th.card,borderRadius:14,padding:20,width:"100%",maxWidth:460,maxHeight:"90vh",overflowY:"auto",boxShadow:"0 24px 48px rgba(0,0,0,.2)",color:th.text,border:`1px solid ${th.border}`};
+  const lb2={display:"block",color:th.muted,fontSize:10,fontWeight:700,marginBottom:2};
+  const in2={width:"100%",padding:"7px 10px",borderRadius:7,border:`1.5px solid ${th.border}`,background:th.alt,color:th.text,fontSize:12,marginBottom:10,fontFamily:"inherit",outline:"none"};
+  return(<div style={ovr} onClick={onCancel}><div onClick={e=>e.stopPropagation()} style={mod}>
+    <h3 style={{margin:"0 0 12px",fontSize:15,fontWeight:800}}>{event?"Muokkaa":"Uusi tapahtuma"}</h3>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+      <div><label style={lb2}>Kuukausi</label><select value={sm} onChange={e=>setSm(+e.target.value)} style={in2}>{MF.map((m,i)=><option key={i} value={i}>{m}</option>)}</select></div>
+      <div><label style={lb2}>Kehä</label><select value={ci} onChange={e=>setCi(e.target.value)} style={in2}>{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+    </div>
+    <label style={lb2}>Otsikko *</label><input value={t} onChange={e=>setT(e.target.value)} placeholder="Nimi" style={in2} autoFocus/>
+    <label style={lb2}>Kuvaus</label><textarea value={d} onChange={e=>setD(e.target.value)} placeholder="Lisätietoja..." rows={2} style={{...in2,resize:"vertical",minHeight:40}}/>
+
+    {/* Day range - shown prominently if precise mode */}
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+      <div><label style={lb2}>Alkupäivä</label><input type="number" min="1" max="31" value={sd} onChange={e=>setSd(e.target.value)} placeholder="–" style={in2}/></div>
+      <div><label style={lb2}>Loppupäivä</label><input type="number" min="1" max="31" value={ed} onChange={e=>setEd(e.target.value)} placeholder="–" style={in2}/></div>
+    </div>
+
+    <label style={lb2}>Väri</label>
+    <div style={{display:"flex",flexWrap:"wrap",gap:3,marginBottom:8}}>
+      <button onClick={()=>setEc(null)} style={{padding:"2px 7px",borderRadius:99,border:`1.5px solid ${!ec?th.text:th.border}`,background:th.card,fontSize:8,fontWeight:600,cursor:"pointer",fontFamily:"inherit",color:th.muted}}>Oletus</button>
+      {TAGS.map(c=><button key={c.id} onClick={()=>setEc(c.color)} style={{padding:"2px 7px",borderRadius:99,border:`1.5px solid ${ec===c.color?c.color:"transparent"}`,background:c.color+(ec===c.color?"33":"12"),color:c.color,fontSize:8,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{c.name}</button>)}</div>
+    <label style={lb2}>Tunnisteet</label>
+    <div style={{display:"flex",flexWrap:"wrap",gap:3,marginBottom:12}}>
+      {TAGS.map(tag=><button key={tag.id} onClick={()=>toggleTag(tag.id)} style={{padding:"2px 7px",borderRadius:99,border:`1.5px solid ${tags.includes(tag.id)?tag.color:"transparent"}`,background:tag.color+(tags.includes(tag.id)?"33":"08"),color:tag.color,fontSize:8,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{tag.icon}{tag.name}</button>)}</div>
+    <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}><button onClick={onCancel} style={{padding:"5px 10px",borderRadius:6,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Peruuta</button><button onClick={go} style={{padding:"5px 12px",borderRadius:6,border:"none",background:"#5B5EA6",color:"#fff",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",opacity:t.trim()?1:.4}}>{event?"Tallenna":"Lisää"}</button></div>
   </div></div>);
 }
 
+/* ═══ Other Modals ═══ */
 function CatModal({categories,onSave,onCancel,theme:th}){
   const[c,setC]=useState(categories.map(x=>({...x})));
-  return(<div style={makeOvr(th)} onClick={onCancel}><div onClick={e=>e.stopPropagation()} style={makeMod(th)}>
-    <h3 style={{margin:"0 0 12px",fontSize:16,fontWeight:800}}>Kehät</h3>
-    <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:10}}>
-      {c.map(x=><div key={x.id} style={{display:"flex",gap:5,alignItems:"center"}}>
-        <input type="color" value={x.color} onChange={e=>setC(c.map(z=>z.id===x.id?{...z,color:e.target.value}:z))} style={{width:26,height:26,border:"none",borderRadius:6,cursor:"pointer"}}/>
-        <input value={x.name} onChange={e=>setC(c.map(z=>z.id===x.id?{...z,name:e.target.value}:z))} placeholder="Nimi" style={{...inp,marginBottom:0,flex:1,background:th.cardAlt,color:th.text,borderColor:th.border}}/>
-        <button onClick={()=>setC(c.filter(z=>z.id!==x.id))} style={{background:"none",border:"none",cursor:"pointer",color:"#ef4444",fontSize:12}}>✕</button></div>)}</div>
-    <button onClick={()=>setC([...c,{id:uid(),name:"",color:["#A8C5DA","#F5D5A0","#B5D8C7","#E8B4B8","#B8B5D8"][c.length%5],visible:true}])} style={{width:"100%",padding:"6px",borderRadius:6,border:`1.5px dashed ${th.border}`,background:"transparent",color:th.muted,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",marginBottom:10}}>+ Lisää</button>
-    <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}><button onClick={onCancel} style={{padding:"6px 12px",borderRadius:7,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Peruuta</button><button onClick={()=>onSave(c.filter(x=>x.name.trim()))} style={{padding:"6px 14px",borderRadius:7,border:"none",background:"#5B5EA6",color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Tallenna</button></div>
+  const ovr={position:"fixed",inset:0,background:"rgba(0,0,0,.4)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:16,backdropFilter:"blur(4px)"};
+  const mod={background:th.card,borderRadius:14,padding:20,width:"100%",maxWidth:440,maxHeight:"90vh",overflowY:"auto",boxShadow:"0 24px 48px rgba(0,0,0,.2)",color:th.text,border:`1px solid ${th.border}`};
+  return(<div style={ovr} onClick={onCancel}><div onClick={e=>e.stopPropagation()} style={mod}>
+    <h3 style={{margin:"0 0 12px",fontSize:15,fontWeight:800}}>Kehät</h3>
+    <div style={{display:"flex",flexDirection:"column",gap:5,marginBottom:8}}>
+      {c.map(x=><div key={x.id} style={{display:"flex",gap:4,alignItems:"center"}}>
+        <input type="color" value={x.color} onChange={e=>setC(c.map(z=>z.id===x.id?{...z,color:e.target.value}:z))} style={{width:24,height:24,border:"none",borderRadius:5,cursor:"pointer"}}/>
+        <input value={x.name} onChange={e=>setC(c.map(z=>z.id===x.id?{...z,name:e.target.value}:z))} placeholder="Nimi" style={{flex:1,padding:"5px 8px",borderRadius:6,border:`1px solid ${th.border}`,background:th.alt,color:th.text,fontSize:11,fontFamily:"inherit",outline:"none"}}/>
+        <button onClick={()=>setC(c.filter(z=>z.id!==x.id))} style={{background:"none",border:"none",cursor:"pointer",color:"#ef4444",fontSize:11}}>✕</button></div>)}</div>
+    <button onClick={()=>setC([...c,{id:uid(),name:"",color:["#A8C5DA","#F5D5A0","#B5D8C7","#E8B4B8","#B8B5D8"][c.length%5],visible:true}])} style={{width:"100%",padding:"5px",borderRadius:5,border:`1.5px dashed ${th.border}`,background:"transparent",color:th.muted,fontSize:9,fontWeight:700,cursor:"pointer",fontFamily:"inherit",marginBottom:8}}>+ Lisää</button>
+    <div style={{display:"flex",gap:5,justifyContent:"flex-end"}}><button onClick={onCancel} style={{padding:"5px 10px",borderRadius:6,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Peruuta</button><button onClick={()=>onSave(c.filter(x=>x.name.trim()))} style={{padding:"5px 12px",borderRadius:6,border:"none",background:"#5B5EA6",color:"#fff",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Tallenna</button></div>
   </div></div>);
 }
 
 function SettModal({settings,onSave,onCancel,theme:th}){
   const[s,setS]=useState({...settings});
   const handleLogo=()=>{const i=document.createElement("input");i.type="file";i.accept="image/*";i.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>setS({...s,logo:ev.target.result});r.readAsDataURL(f)};i.click()};
-  return(<div style={makeOvr(th)} onClick={onCancel}><div onClick={e=>e.stopPropagation()} style={{...makeMod(th),maxWidth:440}}>
-    <h3 style={{margin:"0 0 16px",fontSize:16,fontWeight:800}}>Asetukset</h3>
-    <label style={{...lbl,color:th.muted}}>Kellon tyyppi</label>
-    <div style={{display:"flex",marginBottom:12,borderRadius:8,overflow:"hidden",border:`1.5px solid ${th.border}`}}>
-      {[{v:true,l:"Pyörivä"},{v:false,l:"Staattinen"}].map(o=><button key={String(o.v)} onClick={()=>setS({...s,revolving:o.v})} style={{flex:1,padding:"8px",border:"none",fontSize:11,fontWeight:700,fontFamily:"inherit",cursor:"pointer",background:s.revolving===o.v?"#5B5EA6":th.cardAlt,color:s.revolving===o.v?"#fff":th.muted}}>{o.l}</button>)}</div>
-    <label style={{...lbl,color:th.muted}}>Suunta</label>
-    <div style={{display:"flex",marginBottom:12,borderRadius:8,overflow:"hidden",border:`1.5px solid ${th.border}`}}>
-      {[{v:true,l:"Myötäpäivään ↻"},{v:false,l:"Vastapäivään ↺"}].map(o=><button key={String(o.v)} onClick={()=>setS({...s,clockwise:o.v})} style={{flex:1,padding:"8px",border:"none",fontSize:11,fontWeight:700,fontFamily:"inherit",cursor:"pointer",background:s.clockwise===o.v?"#5B5EA6":th.cardAlt,color:s.clockwise===o.v?"#fff":th.muted}}>{o.l}</button>)}</div>
-    {!s.revolving&&<><label style={{...lbl,color:th.muted}}>Aloituskuukausi</label><select value={s.startMonth} onChange={e=>setS({...s,startMonth:+e.target.value})} style={{...inp,background:th.cardAlt,color:th.text,borderColor:th.border}}>{MF.map((m,i)=><option key={i} value={i}>{m}</option>)}</select></>}
+  const ovr={position:"fixed",inset:0,background:"rgba(0,0,0,.4)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:16,backdropFilter:"blur(4px)"};
+  const mod={background:th.card,borderRadius:14,padding:20,width:"100%",maxWidth:420,maxHeight:"90vh",overflowY:"auto",boxShadow:"0 24px 48px rgba(0,0,0,.2)",color:th.text,border:`1px solid ${th.border}`};
+  const lb2={display:"block",color:th.muted,fontSize:10,fontWeight:700,marginBottom:2};
+  return(<div style={ovr} onClick={onCancel}><div onClick={e=>e.stopPropagation()} style={mod}>
+    <h3 style={{margin:"0 0 14px",fontSize:15,fontWeight:800}}>Asetukset</h3>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
+      <div><label style={lb2}>Tyyppi</label><div style={{display:"flex",borderRadius:6,overflow:"hidden",border:`1px solid ${th.border}`}}>
+        {[{v:true,l:"Pyörivä"},{v:false,l:"Staattinen"}].map(o=><button key={String(o.v)} onClick={()=>setS({...s,revolving:o.v})} style={{flex:1,padding:"6px",border:"none",fontSize:10,fontWeight:700,fontFamily:"inherit",cursor:"pointer",background:s.revolving===o.v?"#5B5EA6":th.alt,color:s.revolving===o.v?"#fff":th.muted}}>{o.l}</button>)}</div></div>
+      <div><label style={lb2}>Suunta</label><div style={{display:"flex",borderRadius:6,overflow:"hidden",border:`1px solid ${th.border}`}}>
+        {[{v:true,l:"↻"},{v:false,l:"↺"}].map(o=><button key={String(o.v)} onClick={()=>setS({...s,clockwise:o.v})} style={{flex:1,padding:"6px",border:"none",fontSize:12,fontWeight:700,fontFamily:"inherit",cursor:"pointer",background:s.clockwise===o.v?"#5B5EA6":th.alt,color:s.clockwise===o.v?"#fff":th.muted}}>{o.l}</button>)}</div></div>
+    </div>
+    {!s.revolving&&<><label style={lb2}>Aloituskuukausi</label><select value={s.startMonth} onChange={e=>setS({...s,startMonth:+e.target.value})} style={{width:"100%",padding:"6px 8px",borderRadius:6,border:`1px solid ${th.border}`,background:th.alt,color:th.text,fontSize:11,marginBottom:10,fontFamily:"inherit",outline:"none"}}>{MF.map((m,i)=><option key={i} value={i}>{m}</option>)}</select></>}
+
     <Toggle value={s.showDates} onChange={v=>setS({...s,showDates:v})} label="Päivämäärärengas"/>
     <Toggle value={s.showHolidays} onChange={v=>setS({...s,showHolidays:v})} label="Juhlapyhät"/>
-    <label style={{...lbl,color:th.muted,marginTop:8}}>Keskustan logo</label>
-    <div style={{display:"flex",gap:8,marginBottom:12,alignItems:"center"}}>
-      {s.logo&&<img src={s.logo} style={{width:40,height:40,borderRadius:10,objectFit:"cover"}}/>}
-      <button onClick={handleLogo} style={{padding:"6px 12px",borderRadius:7,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{s.logo?"Vaihda logo":"Lataa logo"}</button>
-      {s.logo&&<button onClick={()=>setS({...s,logo:null})} style={{background:"none",border:"none",color:"#ef4444",cursor:"pointer",fontSize:10,fontWeight:700,fontFamily:"inherit"}}>Poista</button>}
-    </div>
-    <label style={{...lbl,color:th.muted}}>Teema</label>
-    <div style={{display:"flex",gap:4,marginBottom:14}}>
-      {BG_COLORS.map(t=><button key={t.id} onClick={()=>setS({...s,theme:t.id})} style={{flex:1,padding:"7px",borderRadius:7,border:s.theme===t.id?"2px solid #5B5EA6":`2px solid ${th.border}`,background:t.bg,color:t.text,fontSize:9,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{t.name}</button>)}</div>
-    <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}><button onClick={onCancel} style={{padding:"6px 12px",borderRadius:7,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Peruuta</button><button onClick={()=>onSave(s)} style={{padding:"6px 14px",borderRadius:7,border:"none",background:"#5B5EA6",color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Tallenna</button></div>
+    <label style={{...lb2,marginTop:6}}>Logo</label>
+    <div style={{display:"flex",gap:6,marginBottom:10,alignItems:"center"}}>
+      {s.logo&&<img src={s.logo} style={{width:32,height:32,borderRadius:8,objectFit:"cover"}}/>}
+      <button onClick={handleLogo} style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontSize:9,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{s.logo?"Vaihda":"Lataa"}</button>
+      {s.logo&&<button onClick={()=>setS({...s,logo:null})} style={{background:"none",border:"none",color:"#ef4444",cursor:"pointer",fontSize:9,fontWeight:700,fontFamily:"inherit"}}>Poista</button>}</div>
+    <label style={lb2}>Teema</label>
+    <div style={{display:"flex",gap:3,marginBottom:12}}>
+      {BG.map(t=><button key={t.id} onClick={()=>setS({...s,theme:t.id})} style={{flex:1,padding:"5px",borderRadius:6,border:s.theme===t.id?"2px solid #5B5EA6":`1.5px solid ${th.border}`,background:t.bg,color:t.text,fontSize:8,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{t.name}</button>)}</div>
+    <div style={{display:"flex",gap:5,justifyContent:"flex-end"}}><button onClick={onCancel} style={{padding:"5px 10px",borderRadius:6,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Peruuta</button><button onClick={()=>onSave(s)} style={{padding:"5px 12px",borderRadius:6,border:"none",background:"#5B5EA6",color:"#fff",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Tallenna</button></div>
   </div></div>);
 }
 
 function ShareModal({clock,onClose,theme:th}){
-  const[cp,setCp]=useState(false);
-  const enc=encS(clock);const url=enc?window.location.origin+window.location.pathname+"?d="+enc:null;const big=!url||url.length>8000;
-  return(<div style={makeOvr(th)} onClick={onClose}><div onClick={e=>e.stopPropagation()} style={{...makeMod(th),maxWidth:420}}>
-    <h3 style={{margin:"0 0 14px",fontSize:16,fontWeight:800}}>Jaa</h3>
-    {!big&&<div style={{display:"flex",gap:5,marginBottom:10}}><input value={url} readOnly style={{...inp,marginBottom:0,flex:1,fontSize:9,color:th.sub,background:th.cardAlt,borderColor:th.border}} onClick={e=>e.target.select()}/>
-      <button onClick={()=>{if(url)navigator.clipboard.writeText(url).then(()=>{setCp(true);setTimeout(()=>setCp(false),2000)})}} style={{padding:"6px 12px",borderRadius:7,border:"none",background:cp?"#22C55E":"#5B5EA6",color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{cp?"✓":"Kopioi"}</button></div>}
-    <button onClick={()=>{const b=new Blob([JSON.stringify([clock],null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=(clock.name||"vuosikello")+".json";a.click()}} style={{width:"100%",padding:"8px",borderRadius:7,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",marginBottom:8}}>💾 Lataa JSON</button>
-    <div style={{display:"flex",justifyContent:"flex-end"}}><button onClick={onClose} style={{padding:"6px 12px",borderRadius:7,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Sulje</button></div>
+  const[cp,setCp]=useState(false);const enc=encS(clock);const url=enc?window.location.origin+window.location.pathname+"?d="+enc:null;const big=!url||url.length>8000;
+  const ovr={position:"fixed",inset:0,background:"rgba(0,0,0,.4)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:16,backdropFilter:"blur(4px)"};
+  return(<div style={ovr} onClick={onClose}><div onClick={e=>e.stopPropagation()} style={{background:th.card,borderRadius:14,padding:20,width:"100%",maxWidth:400,boxShadow:"0 24px 48px rgba(0,0,0,.2)",color:th.text,border:`1px solid ${th.border}`}}>
+    <h3 style={{margin:"0 0 12px",fontSize:15,fontWeight:800}}>Jaa</h3>
+    {!big&&<div style={{display:"flex",gap:4,marginBottom:8}}><input value={url} readOnly style={{flex:1,padding:"5px 8px",borderRadius:6,border:`1px solid ${th.border}`,background:th.alt,color:th.sub,fontSize:8,fontFamily:"inherit",outline:"none"}} onClick={e=>e.target.select()}/>
+      <button onClick={()=>{if(url)navigator.clipboard.writeText(url).then(()=>{setCp(true);setTimeout(()=>setCp(false),2000)})}} style={{padding:"5px 10px",borderRadius:6,border:"none",background:cp?"#22C55E":"#5B5EA6",color:"#fff",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{cp?"✓":"Kopioi"}</button></div>}
+    <button onClick={()=>{const b=new Blob([JSON.stringify([clock],null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=(clock.name||"vuosikello")+".json";a.click()}} style={{width:"100%",padding:"6px",borderRadius:6,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",marginBottom:6}}>💾 JSON</button>
+    <div style={{display:"flex",justifyContent:"flex-end"}}><button onClick={onClose} style={{padding:"5px 10px",borderRadius:6,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Sulje</button></div>
   </div></div>);
 }
 
 function MonthPanel({month,events,categories,onAdd,onEdit,onDelete,onClose,theme:th}){
   const cM=useMemo(()=>Object.fromEntries(categories.map(c=>[c.id,c])),[categories]);const me=events.filter(e=>e.month===month);
-  return(<div style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:14,padding:"16px 14px",marginTop:12,animation:"slideIn .2s",color:th.text}}>
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-      <h3 style={{margin:0,fontSize:15,fontWeight:800}}>{MF[month]} <span style={{color:th.sub,fontWeight:400,fontSize:12}}>{me.length}</span></h3>
-      <div style={{display:"flex",gap:4}}><button onClick={()=>onAdd(month)} style={{padding:"4px 10px",borderRadius:6,border:"none",background:"#5B5EA6",color:"#fff",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>+ Lisää</button><button onClick={onClose} style={{padding:"4px 8px",borderRadius:6,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✕</button></div></div>
-    {me.length===0?<div style={{color:th.sub,fontSize:11,padding:"14px 0",textAlign:"center"}}>Ei tapahtumia.</div>:
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:6}}>
-      {me.map(ev=>{const cat=cM[ev.categoryId];return(<div key={ev.id} style={{background:th.cardAlt,borderRadius:8,padding:"9px 11px",borderLeft:`4px solid ${ev.eventColor||cat?.color||th.border}`}}>
-        <div style={{display:"flex",justifyContent:"space-between",gap:4,marginBottom:2}}>
-          <div><span style={{fontWeight:700,fontSize:12}}>{ev.title}</span>
-            {ev.tags&&ev.tags.map(t=>{const tag=TAGS.find(x=>x.id===t);return tag?<span key={t} style={{marginLeft:3,fontSize:7,padding:"1px 5px",borderRadius:99,background:tag.color+"22",color:tag.color,fontWeight:700}}>{tag.name}</span>:null})}
-          </div>
-          <div style={{display:"flex",gap:2}}><button onClick={()=>onEdit(ev)} style={{background:"none",border:"none",cursor:"pointer",color:th.muted,fontSize:11}}>✎</button><button onClick={()=>onDelete(ev.id)} style={{background:"none",border:"none",cursor:"pointer",color:"#ef4444",fontSize:11}}>✕</button></div></div>
-        {ev.desc&&<div style={{fontSize:10,color:th.muted,lineHeight:1.4}}>{ev.desc}</div>}
+  return(<div style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:12,padding:"14px 12px",marginTop:10,animation:"slideIn .2s",color:th.text}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+      <h3 style={{margin:0,fontSize:14,fontWeight:800}}>{MF[month]} <span style={{color:th.sub,fontWeight:400,fontSize:11}}>{me.length}</span></h3>
+      <div style={{display:"flex",gap:4}}><button onClick={()=>onAdd(month)} style={{padding:"3px 9px",borderRadius:5,border:"none",background:"#5B5EA6",color:"#fff",fontSize:9,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>+ Lisää</button><button onClick={onClose} style={{padding:"3px 7px",borderRadius:5,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontSize:9,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✕</button></div></div>
+    {me.length===0?<div style={{color:th.sub,fontSize:10,padding:"12px 0",textAlign:"center"}}>Ei tapahtumia.</div>:
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:5}}>
+      {me.map(ev=>{const cat=cM[ev.categoryId];return(<div key={ev.id} style={{background:th.alt,borderRadius:7,padding:"8px 10px",borderLeft:`3px solid ${ev.eventColor||cat?.color||th.border}`}}>
+        <div style={{display:"flex",justifyContent:"space-between",gap:3}}>
+          <div><span style={{fontWeight:700,fontSize:11}}>{ev.title}</span>
+            {ev.startDay&&<span style={{fontSize:8,color:th.sub,marginLeft:4}}>{ev.startDay}.–{ev.endDay||DIM[month]}.{month+1}.</span>}
+            {ev.tags&&ev.tags.map(t=>{const tag=TAGS.find(x=>x.id===t);return tag?<span key={t} style={{marginLeft:2,fontSize:6,padding:"0 4px",borderRadius:99,background:tag.color+"22",color:tag.color,fontWeight:700}}>{tag.name}</span>:null})}</div>
+          <div style={{display:"flex",gap:2}}><button onClick={()=>onEdit(ev)} style={{background:"none",border:"none",cursor:"pointer",color:th.muted,fontSize:10}}>✎</button><button onClick={()=>onDelete(ev.id)} style={{background:"none",border:"none",cursor:"pointer",color:"#ef4444",fontSize:10}}>✕</button></div></div>
+        {ev.desc&&<div style={{fontSize:9,color:th.muted,marginTop:2}}>{ev.desc}</div>}
       </div>)})}</div>}
   </div>);
 }
@@ -576,84 +608,66 @@ function MonthPanel({month,events,categories,onAdd,onEdit,onDelete,onClose,theme
 function App(){
   const[init]=useState(()=>{
     const p=new URLSearchParams(window.location.search),enc=p.get("d");
-    if(enc){const s=decS(enc);if(s)return{clocks:[{id:uid(),name:s.name,events:(s.events||[]).map(e=>({...e,tags:e.tags||[]})),categories:(s.categories||[]).map(c=>({...c,visible:c.visible!==false})),settings:{...DS,...(s.settings||{})}}],fromShare:true}}
-    const st=ld();if(st)return{clocks:st.map(c=>({...c,events:(c.events||[]).map(e=>({...e,tags:e.tags||[]})),categories:(c.categories||[]).map(ct=>({...ct,visible:ct.visible!==false})),settings:{...DS,...(c.settings||{})}})),fromShare:false};return null;
+    if(enc){const s=decS(enc);if(s)return{clocks:[{id:uid(),name:s.name,events:(s.events||[]).map(e=>({...e,tags:e.tags||[],startDay:e.startDay||null,endDay:e.endDay||null})),categories:(s.categories||[]).map(c=>({...c,visible:c.visible!==false})),settings:{...DS,...(s.settings||{})}}],fromShare:true}}
+    const st=ld();if(st)return{clocks:st.map(c=>({...c,events:(c.events||[]).map(e=>({...e,tags:e.tags||[],startDay:e.startDay||null,endDay:e.endDay||null})),categories:(c.categories||[]).map(ct=>({...ct,visible:ct.visible!==false})),settings:{...DS,...(c.settings||{})}})),fromShare:false};return null;
   });
 
-  const[showOB,setShowOB]=useState(!init);
-  const[clocks,setClocks]=useState(init?init.clocks:[]);
-  const[acId,setAcId]=useState(init?.clocks?.[0]?.id||"");
-  const[view,setView]=useState("clock");
-  const[selM,setSelM]=useState(null);
-  const[editEv,setEditEv]=useState(null);
-  const[showCat,setShowCat]=useState(false);
-  const[showSett,setShowSett]=useState(false);
-  const[showShare,setShowShare]=useState(false);
-  const[showSB,setShowSB]=useState(true);
-  const[editName,setEditName]=useState(false);
-  const[nameVal,setNameVal]=useState("");
-  const[toast,setToast]=useState(null);
+  const[showOB,setShowOB]=useState(!init);const[clocks,setClocks]=useState(init?init.clocks:[]);const[acId,setAcId]=useState(init?.clocks?.[0]?.id||"");
+  const[view,setView]=useState("clock");const[selM,setSelM]=useState(null);const[editEv,setEditEv]=useState(null);
+  const[showCat,setShowCat]=useState(false);const[showSett,setShowSett]=useState(false);const[showShare,setShowShare]=useState(false);const[showSB,setShowSB]=useState(true);
+  const[editName,setEditName]=useState(false);const[dayRing,setDayRing]=useState(false);const[nameVal,setNameVal]=useState("");const[toast,setToast]=useState(null);
 
   useEffect(()=>{if(init?.fromShare){setToast("Jaettu vuosikello avattu!");setTimeout(()=>setToast(null),3000);window.history.replaceState({},"",window.location.pathname)}},[]);
   useEffect(()=>{if(clocks.length>0)sv(clocks)},[clocks]);
 
-  const clock=clocks.find(c=>c.id===acId)||clocks[0];
-  const th=useTh(clock?.settings?.theme||"light");
+  const clock=clocks.find(c=>c.id===acId)||clocks[0];const th=useTh(clock?.settings?.theme||"light");
   const visCIds=clock?clock.categories.filter(c=>c.visible).map(c=>c.id):[];
   const fEv=clock?clock.events.filter(e=>visCIds.includes(e.categoryId)):[];
   const holidays=clock?.settings?.showHolidays?FI_HOLIDAYS:[];
-
   const upd=useCallback(u=>setClocks(p=>p.map(c=>c.id===acId?{...c,...u}:c)),[acId]);
   const onOB=nc=>{setClocks(nc);setAcId(nc[0].id);setShowOB(false)};
   const saveEv=ev=>{const ex=clock.events.find(e=>e.id===ev.id);if(ex)upd({events:clock.events.map(e=>e.id===ev.id?ev:e)});else upd({events:[...clock.events,ev]});setEditEv(null)};
-  const delEv=id=>upd({events:clock.events.filter(e=>e.id!==id)});
-  const startEditName=()=>{setNameVal(clock.name);setEditName(true)};
-  const saveName=()=>{if(nameVal.trim()){upd({name:nameVal.trim()});setEditName(false)}};
 
   if(showOB)return<Onboarding onComplete={onOB}/>;
   if(!clock)return null;
 
   return(<div style={{minHeight:"100vh",background:th.bg,fontFamily:"'DM Sans',sans-serif",color:th.text,transition:"background .3s"}}>
-    <header style={{height:50,padding:"0 14px",borderBottom:`1px solid ${th.border}`,display:"flex",alignItems:"center",justifyContent:"space-between",background:th.card,gap:8}}>
-      <div style={{display:"flex",alignItems:"center",gap:7}}>
-        <button onClick={()=>setShowSB(!showSB)} style={{background:"none",border:"none",color:th.muted,cursor:"pointer",fontSize:15,padding:"3px 6px"}}>☰</button>
-        <div style={{width:26,height:26,borderRadius:6,background:"linear-gradient(135deg,#5B5EA6,#3A8FCD)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:11,fontWeight:800}}>◎</div>
+    <header style={{height:48,padding:"0 12px",borderBottom:`1px solid ${th.border}`,display:"flex",alignItems:"center",justifyContent:"space-between",background:th.card,gap:6}}>
+      <div style={{display:"flex",alignItems:"center",gap:6}}>
+        <button onClick={()=>setShowSB(!showSB)} style={{background:"none",border:"none",color:th.muted,cursor:"pointer",fontSize:14,padding:"2px 5px"}}>☰</button>
+        <div style={{width:24,height:24,borderRadius:5,background:"linear-gradient(135deg,#5B5EA6,#3A8FCD)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:10,fontWeight:800}}>◎</div>
         {editName?<div style={{display:"flex",gap:3,alignItems:"center"}}>
-          <input value={nameVal} onChange={e=>setNameVal(e.target.value)} style={{...inp,marginBottom:0,width:160,fontSize:12,padding:"3px 7px",background:th.cardAlt,color:th.text,borderColor:th.border}} autoFocus onKeyDown={e=>{if(e.key==="Enter")saveName();if(e.key==="Escape")setEditName(false)}}/>
-          <button onClick={saveName} style={{background:"none",border:"none",color:"#22C55E",cursor:"pointer",fontSize:13}}>✓</button></div>:
-        <button onClick={startEditName} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:800,fontSize:13,color:th.text,padding:0}}>{clock.name} <span style={{fontSize:9,color:th.sub}}>✎</span></button>}
+          <input value={nameVal} onChange={e=>setNameVal(e.target.value)} style={{width:150,fontSize:11,padding:"2px 6px",borderRadius:5,border:`1px solid ${th.border}`,background:th.alt,color:th.text,fontFamily:"inherit",outline:"none"}} autoFocus onKeyDown={e=>{if(e.key==="Enter"&&nameVal.trim()){upd({name:nameVal.trim()});setEditName(false)}if(e.key==="Escape")setEditName(false)}}/>
+          <button onClick={()=>{if(nameVal.trim()){upd({name:nameVal.trim()});setEditName(false)}}} style={{background:"none",border:"none",color:"#22C55E",cursor:"pointer",fontSize:12}}>✓</button></div>:
+        <button onClick={()=>{setNameVal(clock.name);setEditName(true)}} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:800,fontSize:12,color:th.text,padding:0}}>{clock.name} <span style={{fontSize:8,color:th.sub}}>✎</span></button>}
       </div>
-      <div style={{display:"flex",gap:4,alignItems:"center",flexWrap:"wrap"}}>
-        <div style={{display:"flex",borderRadius:6,overflow:"hidden",border:`1px solid ${th.border}`,marginRight:3}}>
-          {[["clock","◎","Kello"],["roadmap","🗺","Roadmap"],["timeline","⏐","Aikajana"],["list","≡","Lista"]].map(([v,ic,t2])=><button key={v} onClick={()=>setView(v)} title={t2} style={{padding:"3px 9px",border:"none",fontSize:11,fontWeight:700,fontFamily:"inherit",cursor:"pointer",background:view===v?"#5B5EA6":th.card,color:view===v?"#fff":th.muted}}>{ic}</button>)}</div>
-        {clocks.length>1&&clocks.map(c=><button key={c.id} onClick={()=>{setAcId(c.id);setSelM(null)}} style={{fontSize:9,padding:"3px 7px",borderRadius:5,border:c.id===acId?"none":`1px solid ${th.border}`,background:c.id===acId?"#5B5EA6":th.card,color:c.id===acId?"#fff":th.muted,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{c.name}</button>)}
-        <button onClick={()=>{const id=uid();setClocks(p=>[...p,{id,name:"Uusi",events:[],categories:[{id:uid(),name:"Yleinen",color:"#A8C5DA",visible:true}],settings:{...DS,theme:clock?.settings?.theme||"light"}}]);setAcId(id)}} style={{fontSize:9,padding:"3px 7px",borderRadius:5,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>+</button>
-        <div style={{width:1,height:16,background:th.border}}/>
-        <button onClick={()=>setShowShare(true)} style={{fontSize:9,padding:"3px 9px",borderRadius:5,border:"none",background:"#5B5EA6",color:"#fff",fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>🔗</button>
-        <button onClick={()=>{const i=document.createElement("input");i.type="file";i.accept=".json";i.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(Array.isArray(d)&&d[0]?.events){setClocks(d.map(c=>({...c,events:(c.events||[]).map(e2=>({...e2,tags:e2.tags||[]})),categories:(c.categories||[]).map(ct=>({...ct,visible:ct.visible!==false})),settings:{...DS,...(c.settings||{})}})));setAcId(d[0].id)}}catch{}};r.readAsText(f)};i.click()}} style={{fontSize:9,padding:"3px 7px",borderRadius:5,border:`1px solid ${th.border}`,background:th.card,color:th.muted,cursor:"pointer",fontFamily:"inherit"}}>📂</button>
-        <button onClick={()=>{const cm2=Object.fromEntries(clock.categories.map(c=>[c.id,c]));let h=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${clock.name}</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:sans-serif;padding:32px}h1{font-size:22px;margin-bottom:20px}.mo{margin-bottom:14px}.mt{font-size:14px;font-weight:800;border-bottom:2px solid #e2e8f0;padding-bottom:3px;margin-bottom:6px}.ev{padding:4px 0;border-bottom:1px solid #f1f5f9;display:flex;gap:8px}.d{width:8px;height:8px;border-radius:2px;margin-top:3px}</style></head><body><h1>${clock.name} — ${new Date().getFullYear()}</h1>`;MF.forEach((n,i)=>{const me=fEv.filter(e=>e.month===i);if(!me.length)return;h+=`<div class="mo"><div class="mt">${n}</div>`;me.forEach(e=>{const c=cm2[e.categoryId];h+=`<div class="ev"><div class="d" style="background:${e.eventColor||c?.color||'#ccc'}"></div><div><b>${e.title}</b>${e.desc?` — ${e.desc}`:""}</div></div>`});h+=`</div>`});h+=`</body></html>`;const w=window.open("","_blank");w.document.write(h);w.document.close();setTimeout(()=>w.print(),300)}} style={{fontSize:9,padding:"3px 7px",borderRadius:5,border:`1px solid ${th.border}`,background:th.card,color:th.muted,cursor:"pointer",fontFamily:"inherit"}}>🖨</button>
-        <button onClick={()=>{if(confirm("Nollaa?")){localStorage.removeItem(SK);setClocks([]);setShowOB(true)}}} style={{fontSize:8,padding:"2px 6px",borderRadius:4,border:`1px solid ${th.border}`,background:th.card,color:"#ef4444",cursor:"pointer",fontFamily:"inherit",fontWeight:700}}>×</button>
+      <div style={{display:"flex",gap:3,alignItems:"center",flexWrap:"wrap"}}>
+        <div style={{display:"flex",borderRadius:5,overflow:"hidden",border:`1px solid ${th.border}`,marginRight:2}}>
+          {[["clock","◎"],["roadmap","🗺"],["timeline","⏐"],["list","≡"]].map(([v,ic])=><button key={v} onClick={()=>setView(v)} style={{padding:"2px 8px",border:"none",fontSize:10,fontWeight:700,fontFamily:"inherit",cursor:"pointer",background:view===v?"#5B5EA6":th.card,color:view===v?"#fff":th.muted}}>{ic}</button>)}</div>
+        <button onClick={()=>setDayRing(!dayRing)} style={{fontSize:8,padding:"2px 8px",borderRadius:4,border:dayRing?`1.5px solid #5B5EA6`:`1.5px solid ${th.border}`,background:dayRing?"#5B5EA622":th.card,color:dayRing?"#5B5EA6":th.muted,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}} title="Päivärengas">{dayRing?"📅 Päivät":"📅"}</button>
+        {clocks.length>1&&clocks.map(c=><button key={c.id} onClick={()=>{setAcId(c.id);setSelM(null)}} style={{fontSize:8,padding:"2px 6px",borderRadius:4,border:c.id===acId?"none":`1px solid ${th.border}`,background:c.id===acId?"#5B5EA6":th.card,color:c.id===acId?"#fff":th.muted,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{c.name}</button>)}
+        <button onClick={()=>{const id=uid();setClocks(p=>[...p,{id,name:"Uusi",events:[],categories:[{id:uid(),name:"Yleinen",color:"#A8C5DA",visible:true}],settings:{...DS,theme:clock?.settings?.theme||"light"}}]);setAcId(id)}} style={{fontSize:8,padding:"2px 6px",borderRadius:4,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>+</button>
+        <div style={{width:1,height:14,background:th.border}}/>
+        <button onClick={()=>setShowShare(true)} style={{fontSize:8,padding:"2px 8px",borderRadius:4,border:"none",background:"#5B5EA6",color:"#fff",fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>🔗</button>
+        <button onClick={()=>{const i=document.createElement("input");i.type="file";i.accept=".json";i.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(Array.isArray(d)){setClocks(d.map(c=>({...c,events:(c.events||[]).map(e2=>({...e2,tags:e2.tags||[],startDay:e2.startDay||null,endDay:e2.endDay||null})),categories:(c.categories||[]).map(ct=>({...ct,visible:ct.visible!==false})),settings:{...DS,...(c.settings||{})}})));setAcId(d[0].id)}}catch{}};r.readAsText(f)};i.click()}} style={{fontSize:8,padding:"2px 6px",borderRadius:4,border:`1px solid ${th.border}`,background:th.card,color:th.muted,cursor:"pointer",fontFamily:"inherit"}}>📂</button>
+        <button onClick={()=>{if(confirm("Nollaa?")){localStorage.removeItem(SK);setClocks([]);setShowOB(true)}}} style={{fontSize:7,padding:"2px 5px",borderRadius:3,border:`1px solid ${th.border}`,background:th.card,color:"#ef4444",cursor:"pointer",fontFamily:"inherit",fontWeight:700}}>×</button>
       </div>
     </header>
-
-    <div style={{display:"flex",height:"calc(100vh - 50px)"}}>
+    <div style={{display:"flex",height:"calc(100vh - 48px)"}}>
       <Sidebar clock={clock} onUpdate={upd} onMonthClick={m=>setSelM(selM===m?null:m)} selectedMonth={selM} showSB={showSB} setShowSB={setShowSB} setShowCat={setShowCat} setShowSett={setShowSett} theme={th}/>
-      <div style={{flex:1,overflowY:"auto",padding:"12px 16px"}}>
-        <div style={{display:"flex",justifyContent:"flex-end",marginBottom:8,gap:4}}>
-          <button onClick={()=>setShowCat(true)} style={{fontSize:9,padding:"3px 9px",borderRadius:5,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>🏷 Kehät</button>
-          <button onClick={()=>setShowSett(true)} style={{fontSize:9,padding:"3px 9px",borderRadius:5,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>⚙️</button>
-          <button onClick={()=>setEditEv({month:selM??new Date().getMonth()})} style={{fontSize:9,padding:"3px 12px",borderRadius:5,border:"none",background:"#5B5EA6",color:"#fff",fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>+ Tapahtuma</button>
+      <div style={{flex:1,overflowY:"auto",padding:"10px 14px"}}>
+        <div style={{display:"flex",justifyContent:"flex-end",marginBottom:8,gap:3}}>
+          <button onClick={()=>setShowCat(true)} style={{fontSize:8,padding:"3px 8px",borderRadius:4,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>🏷</button>
+          <button onClick={()=>setShowSett(true)} style={{fontSize:8,padding:"3px 8px",borderRadius:4,border:`1px solid ${th.border}`,background:th.card,color:th.muted,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>⚙️</button>
+          <button onClick={()=>setEditEv({month:selM??new Date().getMonth()})} style={{fontSize:8,padding:"3px 10px",borderRadius:4,border:"none",background:"#5B5EA6",color:"#fff",fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>+ Tapahtuma</button>
         </div>
-
-        {view==="clock"&&<CircularClock events={fEv} categories={clock.categories.filter(c=>c.visible)} onMonthClick={m=>setSelM(selM===m?null:m)} onEventClick={ev=>setEditEv(ev)} clockTitle={clock.name} selectedMonth={selM} settings={clock.settings} theme={th} holidays={holidays}/>}
+        {view==="clock"&&<CircularClock events={fEv} categories={clock.categories.filter(c=>c.visible)} onMonthClick={m=>setSelM(selM===m?null:m)} onEventClick={ev=>setEditEv(ev)} clockTitle={clock.name} selectedMonth={selM} settings={clock.settings||DS} theme={th} holidays={holidays} showDayRing={dayRing}/>}
         {view==="roadmap"&&<RoadmapView events={fEv} categories={clock.categories.filter(c=>c.visible)} onEventClick={ev=>setEditEv(ev)} clockTitle={clock.name} theme={th}/>}
         {view==="timeline"&&<TimelineView events={fEv} categories={clock.categories.filter(c=>c.visible)} onEventClick={ev=>setEditEv(ev)} clockTitle={clock.name} theme={th}/>}
         {view==="list"&&<ListView events={fEv} categories={clock.categories} onMonthClick={m=>setSelM(selM===m?null:m)} onEventClick={ev=>setEditEv(ev)} theme={th}/>}
-
-        {selM!==null&&view!=="timeline"&&view!=="roadmap"&&<MonthPanel month={selM} events={fEv} categories={clock.categories} onAdd={m=>setEditEv({month:m})} onEdit={ev=>setEditEv(ev)} onDelete={delEv} onClose={()=>setSelM(null)} theme={th}/>}
+        {selM!==null&&view!=="timeline"&&view!=="roadmap"&&<MonthPanel month={selM} events={fEv} categories={clock.categories} onAdd={m=>setEditEv({month:m})} onEdit={ev=>setEditEv(ev)} onDelete={id=>upd({events:clock.events.filter(e=>e.id!==id)})} onClose={()=>setSelM(null)} theme={th}/>}
       </div>
     </div>
-
     {editEv&&<EventModal event={editEv.id?editEv:null} month={editEv.month} categories={clock.categories} onSave={saveEv} onCancel={()=>setEditEv(null)} theme={th}/>}
     {showCat&&<CatModal categories={clock.categories} onSave={cats=>{upd({categories:cats.map(c=>({...c,visible:c.visible!==false}))});setShowCat(false)}} onCancel={()=>setShowCat(false)} theme={th}/>}
     {showSett&&<SettModal settings={clock.settings||DS} onSave={s=>{upd({settings:s});setShowSett(false)}} onCancel={()=>setShowSett(false)} theme={th}/>}
@@ -661,7 +675,6 @@ function App(){
     {toast&&<div className="toast">{toast}</div>}
   </div>);
 }
-
 ReactDOM.render(<App/>,document.getElementById("root"));
 </script>
 </body>
